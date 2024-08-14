@@ -128,7 +128,7 @@
 
         &:focus {
           background-color: unset;
-          border: 1px solid var(--green-50);
+          outline: 0;
         }
 
         &:hover {
@@ -137,8 +137,8 @@
 
         // tab navigation focus style
         &:focus-visible {
-          &:extend(.input-focus-style);
-          background-color: white;
+          .box-shadow-button-input();
+          outline: 0;
         }
 
         @media (max-width: @screen-xs-max) {
@@ -412,6 +412,9 @@
 
     .plans-new-table-cta {
       margin-top: auto;
+      a:nth-child(2) {
+        margin-top: var(--spacing-04);
+      }
     }
   }
 
@@ -676,12 +679,6 @@
       margin-top: var(--spacing-06);
     }
 
-    .additional-link-buy-btn-container {
-      text-align: center;
-      width: 100%;
-      padding-top: var(--spacing-04);
-    }
-
     .highlighted-plans-card {
       border: 2px solid var(--green-50) !important;
     }
@@ -755,6 +752,15 @@
           li {
             display: flex;
             margin-top: var(--spacing-05);
+          }
+        }
+
+        .plans-card-cta-container-monthly-annual {
+          margin-top: var(--spacing-08);
+          .plans-card-cta-buttons-container {
+            a:nth-child(2) {
+              margin-top: var(--spacing-04);
+            }
           }
         }
 
@@ -1044,7 +1050,8 @@
       font-size: var(--font-size-04);
       background-color: var(--white);
       border: unset;
-      width: 200px;
+      display: flex;
+      align-items: center;
     }
   }
 }
