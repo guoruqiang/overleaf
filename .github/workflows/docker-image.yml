@@ -1,9 +1,13 @@
 name: Publish Docker image build
 
+# on:
+#   push:
+#     branches:
+#       - 'main'
 on:
   push:
-    branches:
-      - 'main'
+    tags:
+      - '*'
   workflow_dispatch:
     inputs:
       name:

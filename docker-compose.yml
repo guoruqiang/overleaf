@@ -4,7 +4,7 @@ services:
         restart: always
         # Server Pro users:
         # image: quay.io/sharelatex/sharelatex-pro
-        image: sharelatex/sharelatex
+        image: ag471782517/sharelatex
         container_name: sharelatex
         depends_on:
             mongo:
@@ -12,13 +12,14 @@ services:
             redis:
                 condition: service_started
         ports:
-            - 80:80
+            - 7777:80
         links:
             - mongo
             - redis
         stop_grace_period: 60s
         volumes:
-            - ~/sharelatex_data:/var/lib/overleaf
+            - ./data/sharelatex_data:/var/lib/overleaf
+            - ./fonts:/usr/share/fonts/windows
             ########################################################################
             ####  Server Pro: Uncomment the following line to mount the docker  ####
             ####             socket, required for Sibling Containers to work    ####
@@ -26,7 +27,7 @@ services:
             # - /var/run/docker.sock:/var/run/docker.sock
         environment:
 
-            OVERLEAF_APP_NAME: Overleaf Community Edition
+            OVERLEAF_APP_NAME: GuoRuqiang’s Sharelatex
 
             OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
 
@@ -50,29 +51,29 @@ services:
             ## Set for SSL via nginx-proxy
             #VIRTUAL_HOST: 103.112.212.22
 
-            # OVERLEAF_SITE_URL: http://overleaf.example.com
-            # OVERLEAF_NAV_TITLE: Overleaf Community Edition
+            OVERLEAF_SITE_URL: http://latex.nwafu-ai.com
+            OVERLEAF_NAV_TITLE: GuoRuqiang’s ShareLaTeX（请联系管理员注册）
             # OVERLEAF_HEADER_IMAGE_URL: http://example.com/mylogo.png
-            # OVERLEAF_ADMIN_EMAIL: support@it.com
+            OVERLEAF_ADMIN_EMAIL: 471782517@qq.com
 
-            # OVERLEAF_LEFT_FOOTER: '[{"text": "Another page I want to link to can be found <a href=\"here\">here</a>"} ]'
+            OVERLEAF_LEFT_FOOTER: '[{"text": "Built by <a href=\"https://www.nwafu-ai.cn\">GuoRuqiang2023</a>"},{"text": "Welcome to use <a href=\"https://gpt.nwafu-ai.me\">NWAFUer’s ChatGPT</a>"} ]'
             # OVERLEAF_RIGHT_FOOTER: '[{"text": "Hello I am on the Right"} ]'
 
-            # OVERLEAF_EMAIL_FROM_ADDRESS: "hello@example.com"
+            OVERLEAF_EMAIL_FROM_ADDRESS: "ag471782517@gmail.com"
 
             # OVERLEAF_EMAIL_AWS_SES_ACCESS_KEY_ID:
             # OVERLEAF_EMAIL_AWS_SES_SECRET_KEY:
 
-            # OVERLEAF_EMAIL_SMTP_HOST: smtp.example.com
-            # OVERLEAF_EMAIL_SMTP_PORT: 587
-            # OVERLEAF_EMAIL_SMTP_SECURE: false
-            # OVERLEAF_EMAIL_SMTP_USER:
-            # OVERLEAF_EMAIL_SMTP_PASS:
+            OVERLEAF_EMAIL_SMTP_HOST: smtp.gmail.com
+            OVERLEAF_EMAIL_SMTP_PORT: 587
+            OVERLEAF_EMAIL_SMTP_SECURE: false
+            OVERLEAF_EMAIL_SMTP_USER: ag471782517@gmail.com
+            OVERLEAF_EMAIL_SMTP_PASS: okzayiykkuihhcbh
             # OVERLEAF_EMAIL_SMTP_TLS_REJECT_UNAUTH: true
             # OVERLEAF_EMAIL_SMTP_IGNORE_TLS: false
-            # OVERLEAF_EMAIL_SMTP_NAME: '127.0.0.1'
+            OVERLEAF_EMAIL_SMTP_NAME: 'latex.nwafu-ai.com'
             # OVERLEAF_EMAIL_SMTP_LOGGER: true
-            # OVERLEAF_CUSTOM_EMAIL_FOOTER: "This system is run by department x"
+            OVERLEAF_CUSTOM_EMAIL_FOOTER: "Welcome to use GuoRuqiang’s ShareLaTeX."
 
             # ENABLE_CRON_RESOURCE_DELETION: true
 
@@ -108,15 +109,31 @@ services:
         restart: always
         image: mongo:5.0
         container_name: mongo
+        command: "--replSet overleaf"
         expose:
             - 27017
         volumes:
-            - ~/mongo_data:/data/db
+            - ./data/mongo_data:/data/db
         healthcheck:
             test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
             interval: 10s
             timeout: 10s
             retries: 5
+
+    mongoinit:
+        restart: "no"
+        image: mongo:5.0
+        depends_on:
+          mongo:
+            condition: service_healthy
+        entrypoint:
+          [
+            "mongo",
+            "--host",
+            "mongo:27017",
+            "--eval",
+            'rs.initiate({ _id: "overleaf", members: [ { _id: 0, host: "mongo:27017" } ] })',
+          ]
 
     redis:
         restart: always
@@ -125,7 +142,7 @@ services:
         expose:
             - 6379
         volumes:
-            - ~/redis_data:/data
+            - ./data/redis_data:/data
 
     # ldap:
     #    restart: always
