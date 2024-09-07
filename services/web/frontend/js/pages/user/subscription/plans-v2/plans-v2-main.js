@@ -18,6 +18,7 @@ import {
   handleForStudentsLinkInFooter,
   setHashFromViewTab,
 } from './plans-v2-hash'
+import { sendPlansViewEvent } from './plans-v2-tracking'
 import getMeta from '../../../../utils/meta'
 
 const currentCurrencyCode = getMeta('ol-recommendedCurrency')
@@ -53,9 +54,9 @@ function setUpSubscriptionTracking(linkEl) {
       button: plan,
       location,
       'billing-period': period,
+      currency: currentCurrencyCode,
     }
 
-    eventTracking.sendMB('plans-page-start-trial') // deprecated by plans-page-click
     eventTracking.sendMB(eventTrackingKey, eventTrackingSegmentation)
   })
 }
@@ -330,3 +331,5 @@ window.addEventListener('hashchange', () => {
     }
   }
 })
+
+sendPlansViewEvent()

@@ -1,5 +1,6 @@
 // m-a stands for: monthly annual
-@plans-m-a-switch-height: 20px;
+@plans-m-a-switch-height: 34px;
+@plans-m-a-switch-padding: 2px;
 @plans-highlighted-text-height-desktop: 32px;
 @plans-highlighted-text-height-mobile: 41px;
 @plans-learn-more-link-color: hsl(206, 100%, 52%);
@@ -212,17 +213,9 @@
     }
   }
 
-  a.btn.plans-v2-btn-header,
-  button.plans-v2-btn-header {
+  a.btn.plans-v2-btn-header-light,
+  button.plans-v2-btn-header-light {
     font-family: @font-family-sans-serif;
-    margin-top: @margin-sm;
-    text-shadow: 0 0 0;
-    background-color: @ol-blue;
-    color: @white;
-
-    &:hover {
-      color: @white;
-    }
   }
 
   .monthly-annual-switch {
@@ -247,7 +240,7 @@
     label {
       position: relative;
       display: inline-block;
-      width: 34px;
+      width: 60px;
       height: @plans-m-a-switch-height;
       margin: 0 var(--spacing-05);
 
@@ -266,7 +259,7 @@
       }
 
       input:checked + span::before {
-        transform: translateX(14px);
+        transform: translateX(26px);
       }
 
       span {
@@ -282,10 +275,12 @@
         &::before {
           position: absolute;
           content: '';
-          height: 16px;
-          width: 16px;
-          left: 2px;
-          bottom: 2px;
+          height: @plans-m-a-switch-height - @plans-m-a-switch-padding -
+            @plans-m-a-switch-padding;
+          width: @plans-m-a-switch-height - @plans-m-a-switch-padding -
+            @plans-m-a-switch-padding;
+          left: @plans-m-a-switch-padding;
+          bottom: @plans-m-a-switch-padding;
           background-color: @white;
           transition: 0.4s;
           border-radius: 50%;
@@ -1210,17 +1205,28 @@
     }
   }
 
-  .plans-v2-university-info {
+  .plans-v2-university-info-light {
     padding: @padding-lg @padding-xxl;
-    background-color: var(--neutral-20);
+    background-color: var(--white);
     border-radius: 20px;
+    max-width: @screen-sm-max; // 991px
+    margin: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-07); // 20px
 
-    h3.plans-v2-university-info-header {
-      margin: 0 @margin-xl @margin-md @margin-xl;
+    @media (max-width: @screen-sm-max) {
+      flex-direction: column;
+      align-items: start;
     }
 
-    p.plans-v2-university-info-text {
-      margin: 0 @margin-xl;
+    h3.plans-v2-university-info-header-light {
+      margin: 0;
+    }
+
+    p.plans-v2-university-info-text-light {
+      margin: 0;
+      margin-top: @margin-sm;
     }
 
     a.plans-v2-btn-university-info {
@@ -1228,11 +1234,11 @@
     }
 
     @media (max-width: @screen-sm-max) {
-      h3.plans-v2-university-info-header {
+      h3.plans-v2-university-info-header-light {
         margin: 0 0 @margin-md 0;
       }
 
-      p.plans-v2-university-info-text {
+      p.plans-v2-university-info-text-light {
         margin: 0;
       }
     }
@@ -1287,6 +1293,17 @@
         font-size: 11px;
         text-wrap: auto;
       }
+    }
+  }
+
+  &.plans-page
+    .plans-table-price-row
+    .plans-table-price-container
+    .plans-table-price
+    span {
+    @media (max-width: @screen-xs-max) {
+      font-size: var(--font-size-05);
+      line-height: var(--line-height-05);
     }
   }
 }

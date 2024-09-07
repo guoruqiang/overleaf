@@ -5,7 +5,7 @@ const { setTimeout } = require('timers/promises')
 const pProps = require('p-props')
 const logger = require('@overleaf/logger')
 const { expressify } = require('@overleaf/promise-utils')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const ProjectDeleter = require('./ProjectDeleter')
 const ProjectDuplicator = require('./ProjectDuplicator')
 const ProjectCreationHandler = require('./ProjectCreationHandler')
@@ -333,14 +333,16 @@ const _ProjectController = {
       'pdf-caching-prefetching',
       'pdf-presentation-mode',
       'pdfjs-40',
-      'personal-access-token',
       'revert-file',
+      'revert-project',
       'review-panel-redesign',
+      !anonymous && 'ro-mirror-on-client',
       'track-pdf-download',
       !anonymous && 'writefull-oauth-promotion',
       'ieee-stylesheet',
       'write-and-cite',
       'default-visual-for-beginners',
+      'password-authentication-removal',
     ].filter(Boolean)
 
     const getUserValues = async userId =>
@@ -413,6 +415,7 @@ const _ProjectController = {
           tokens: 1,
           tokenAccessReadAndWrite_refs: 1, // used for link sharing analytics
           collaberator_refs: 1, // used for link sharing analytics
+          pendingEditor_refs: 1, // used for link sharing analytics
         }),
         userIsMemberOfGroupSubscription: sessionUser
           ? (async () =>
@@ -443,30 +446,6 @@ const _ProjectController = {
         usedLatex,
       } = userValues
 
-      // check if a user is not in the writefull-oauth-promotion, in which case they may be part of the auto trial group
-      if (
-        !anonymous &&
-        splitTestAssignments['writefull-oauth-promotion']?.variant === 'default'
-      ) {
-        // since we are auto-enrolling users into writefull if they are part of the group, we only want to
-        // auto enroll (set writefull to true) if its the first time they have entered the test
-        // this ensures that they can still turn writefull off (otherwise, we would be setting writefull on every time they access their projects)
-        const { variant, metadata } =
-          await SplitTestHandler.promises.getAssignment(
-            req,
-            res,
-            'writefull-auto-load'
-          )
-        if (variant === 'enabled' && metadata?.isFirstNonDefaultAssignment) {
-          await UserUpdater.promises.updateUser(userId, {
-            $set: {
-              writefull: { enabled: true },
-            },
-          })
-          user.writefull.enabled = true
-        }
-      }
-
       const brandVariation = project?.brandVariationId
         ? await BrandVariationsHandler.promises.getBrandVariationById(
             project.brandVariationId
@@ -486,12 +465,24 @@ const _ProjectController = {
           anonRequestToken
         )
 
-      const linkSharingChanges =
-        await SplitTestHandler.promises.getAssignmentForUser(
+      const [linkSharingChanges, linkSharingEnforcement] = await Promise.all([
+        SplitTestHandler.promises.getAssignmentForUser(
           project.owner_ref,
           'link-sharing-warning'
-        )
+        ),
+        SplitTestHandler.promises.getAssignmentForUser(
+          project.owner_ref,
+          'link-sharing-enforcement'
+        ),
+      ])
+
       if (linkSharingChanges?.variant === 'active') {
+        if (linkSharingEnforcement?.variant === 'active') {
+          await Modules.promises.hooks.fire(
+            'enforceCollaboratorLimit',
+            projectId
+          )
+        }
         if (isTokenMember) {
           // Check explicitly that the user is in read write token refs, while this could be inferred
           // from the privilege level, the privilege level of token members might later be restricted
@@ -568,12 +559,15 @@ const _ProjectController = {
         )
         const planLimit = ownerFeatures?.collaborators || 0
         const namedEditors = project.collaberator_refs?.length || 0
+        const pendingEditors = project.pendingEditor_refs?.length || 0
         const exceedAtLimit = planLimit > -1 && namedEditors >= planLimit
         const projectOpenedSegmentation = {
           projectId: project._id,
           // temporary link sharing segmentation:
           linkSharingWarning: linkSharingChanges?.variant,
+          linkSharingEnforcement: linkSharingEnforcement?.variant,
           namedEditors,
+          pendingEditors,
           tokenEditors: project.tokenAccessReadAndWrite_refs?.length || 0,
           planLimit,
           exceedAtLimit,
@@ -618,26 +612,15 @@ const _ProjectController = {
         !userIsMemberOfGroupSubscription &&
         !userHasInstitutionLicence
 
-      const showPersonalAccessToken =
-        userId &&
-        (!Features.hasFeature('saas') ||
-          req.query?.personal_access_token === 'true')
-
-      const optionalPersonalAccessToken =
-        userId &&
-        !showPersonalAccessToken &&
-        splitTestAssignments['personal-access-token'].variant === 'enabled' // `?personal-access-token=enabled`
-
-      let showAiErrorAssistant = false
+      let aiFeaturesAllowed = false
       if (userId && Features.hasFeature('saas')) {
         try {
           // exit early if the user couldnt use ai anyways, since permissions checks are expensive
-          const canUseAiOnProject =
-            user.features?.aiErrorAssistant &&
-            (privilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
-              privilegeLevel === PrivilegeLevels.OWNER)
+          const canEditProject =
+            privilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
+            privilegeLevel === PrivilegeLevels.OWNER
 
-          if (canUseAiOnProject) {
+          if (canEditProject) {
             // check permissions for user and project owner, to see if they allow AI on the project
             const permissionsResults = await Modules.promises.hooks.fire(
               'projectAllowsCapability',
@@ -649,11 +632,34 @@ const _ProjectController = {
               result => result === true
             )
 
-            showAiErrorAssistant = aiAllowed
+            aiFeaturesAllowed = aiAllowed
           }
         } catch (err) {
           // still allow users to access project if we cant get their permissions, but disable AI feature
-          showAiErrorAssistant = false
+          aiFeaturesAllowed = false
+        }
+      }
+
+      // check if a user has never tried writefull before (writefull.enabled will be null)
+      //  if they previously accepted writefull. user.writefull will be true,
+      //  if they explicitly disabled it, user.writefull will be false
+      if (aiFeaturesAllowed && user.writefull?.enabled === null) {
+        // since we are auto-enrolling users into writefull if they are part of the group, we only want to
+        // auto enroll (set writefull to true) if its the first time they have entered the test
+        // this ensures that they can still turn writefull off (otherwise, we would be setting writefull on every time they access their projects)
+        const { variant, metadata } =
+          await SplitTestHandler.promises.getAssignment(
+            req,
+            res,
+            'writefull-auto-load'
+          )
+        if (variant === 'enabled' && metadata?.isFirstNonDefaultAssignment) {
+          await UserUpdater.promises.updateUser(userId, {
+            $set: {
+              writefull: { enabled: true },
+            },
+          })
+          user.writefull.enabled = true
         }
       }
 
@@ -661,6 +667,11 @@ const _ProjectController = {
         detachRole === 'detached'
           ? 'project/ide-react-detached'
           : 'project/ide-react'
+
+      // Get the user's assignment for this page's Bootstrap 5 split test, which
+      // populates splitTestVariants with a value for the split test name and allows
+      // Pug to read it
+      await SplitTestHandler.promises.getAssignment(req, res, 'bootstrap-5-ide')
 
       res.render(template, {
         title: project.name,
@@ -680,7 +691,7 @@ const _ProjectController = {
           features: user.features,
           refProviders: _.mapValues(user.refProviders, Boolean),
           writefull: {
-            enabled: Boolean(user.writefull?.enabled),
+            enabled: Boolean(user.writefull?.enabled && aiFeaturesAllowed),
           },
           alphaProgram: user.alphaProgram,
           betaProgram: user.betaProgram,
@@ -710,6 +721,8 @@ const _ProjectController = {
           isTokenMember,
           isInvitedMember
         ),
+        roMirrorOnClientNoLocalStorage:
+          Settings.adminOnlyLogin || project.name.startsWith('Debug: '),
         languages: Settings.languages,
         learnedWords,
         editorThemes: THEME_LIST,
@@ -726,23 +739,25 @@ const _ProjectController = {
         debugPdfDetach,
         showSymbolPalette,
         symbolPaletteAvailable: Features.hasFeature('symbol-palette'),
-        showAiErrorAssistant,
+        userRestrictions: Array.from(req.userRestrictions || []),
+        showAiErrorAssistant:
+          aiFeaturesAllowed && user.features?.aiErrorAssistant,
         detachRole,
         metadata: { viewport: false },
         showUpgradePrompt,
         fixedSizeDocument: true,
         useOpenTelemetry: Settings.useOpenTelemetryClient,
-        showPersonalAccessToken,
-        optionalPersonalAccessToken,
         hasTrackChangesFeature: Features.hasFeature('track-changes'),
         projectTags,
-        linkSharingWarning: linkSharingChanges.variant === 'active',
+        linkSharingWarning: linkSharingChanges?.variant === 'active',
+        linkSharingEnforcement: linkSharingEnforcement?.variant === 'active',
         usedLatex:
           // only use the usedLatex value if the split test is enabled
           splitTestAssignments['default-visual-for-beginners']?.variant ===
           'enabled'
             ? usedLatex
             : null,
+        isSaas: Features.hasFeature('saas'),
       })
       timer.done()
     } catch (err) {
@@ -1032,7 +1047,6 @@ const ProjectController = {
   ),
   updateProjectSettings: expressify(_ProjectController.updateProjectSettings),
   userProjectsJson: expressify(_ProjectController.userProjectsJson),
-
   _buildProjectList: _ProjectController._buildProjectList,
   _buildProjectViewModel: _ProjectController._buildProjectViewModel,
   _injectProjectUsers: _ProjectController._injectProjectUsers,

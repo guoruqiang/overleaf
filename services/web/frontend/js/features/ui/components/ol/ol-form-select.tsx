@@ -14,9 +14,11 @@ function OLFormSelect(props: OLFormSelectProps) {
   const { bs3Props, ...bs5Props } = props
 
   const bs3FormSelectProps: BS3FormControlProps = {
+    children: bs5Props.children,
     bsSize: bs5Props.size,
     name: bs5Props.name,
     value: bs5Props.value,
+    defaultValue: bs5Props.defaultValue,
     disabled: bs5Props.disabled,
     onChange: bs5Props.onChange as BS3FormControlProps['onChange'],
     required: bs5Props.required,

@@ -18,7 +18,6 @@ import { dispatchTimer } from '../../../infrastructure/cm6-performance'
 
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { FigureModal } from './figure-modal/figure-modal'
-import useViewerPermissions from '@/shared/hooks/use-viewer-permissions'
 import { ReviewPanelProviders } from '@/features/review-panel-new/context/review-panel-providers'
 import { ReviewPanelMigration } from '@/features/source-editor/components/review-panel/review-panel-migration'
 
@@ -38,12 +37,13 @@ function CodeMirrorEditor() {
 
   const isMounted = useIsMounted()
 
-  const shouldShowReviewPanel = !useViewerPermissions()
-
   // create the view using the initial state and intercept transactions
   const viewRef = useRef<EditorView | null>(null)
   if (viewRef.current === null) {
     const timer = dispatchTimer()
+
+    // @ts-ignore (disable EditContext-based editing until stable)
+    EditorView.EDIT_CONTEXT = false
 
     const view = new EditorView({
       state,
@@ -75,7 +75,7 @@ function CodeMirrorEditor() {
           )}
           <CodeMirrorCommandTooltip />
 
-          {shouldShowReviewPanel && <ReviewPanelMigration />}
+          <ReviewPanelMigration />
           {sourceEditorComponents.map(
             ({ import: { default: Component }, path }) => (
               <Component key={path} />

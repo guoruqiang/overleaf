@@ -59,8 +59,6 @@ describe('SubscriptionController', function () {
       },
     }
 
-    this.PlansLocator = { findLocalPlanInSettings: sinon.stub() }
-
     this.LimitationsManager = {
       hasPaidSubscription: sinon.stub(),
       userHasV1OrV2Subscription: sinon.stub(),
@@ -148,7 +146,6 @@ describe('SubscriptionController', function () {
         '../Authentication/SessionManager': this.SessionManager,
         './SubscriptionHandler': this.SubscriptionHandler,
         './SubscriptionHelper': this.SubscriptionHelper,
-        './PlansLocator': this.PlansLocator,
         './SubscriptionViewModelBuilder': this.SubscriptionViewModelBuilder,
         './LimitationsManager': this.LimitationsManager,
         '../../infrastructure/GeoIpLookup': this.GeoIpLookup,
@@ -176,6 +173,9 @@ describe('SubscriptionController', function () {
           setUserPropertyForUser: sinon.stub(),
         }),
         '../../infrastructure/Features': this.Features,
+        '../../util/currency': (this.currency = {
+          formatCurrencyLocalized: sinon.stub(),
+        }),
       },
     })
 
@@ -323,9 +323,11 @@ describe('SubscriptionController', function () {
     describe('showLATAMBanner', function () {
       describe('latam variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'latam',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'geo-pricing-latam-v2')
+            .resolves({
+              variant: 'latam',
+            })
         })
         it('should return true for Mexican users', function (done) {
           this.res.render = (page, opts) => {
@@ -385,9 +387,11 @@ describe('SubscriptionController', function () {
       })
       describe('default variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'default',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'geo-pricing-latam-v2')
+            .resolves({
+              variant: 'default',
+            })
         })
         it('should return false', function (done) {
           this.res.render = (page, opts) => {
@@ -398,6 +402,122 @@ describe('SubscriptionController', function () {
           this.GeoIpLookup.promises.getCurrencyCode.resolves({
             countryCode: 'MX',
           })
+          this.SubscriptionController.plansPage(this.req, this.res)
+        })
+      })
+    })
+
+    describe('localCcyAssignment', function () {
+      it('uses formatCurrencyLocalized when variant is enabled', function (done) {
+        this.SplitTestV2Hander.promises.getAssignment
+          .withArgs(this.req, this.res, 'local-ccy-format-v2')
+          .resolves({
+            variant: 'enabled',
+          })
+        this.res.render = (page, opts) => {
+          expect(opts.formatCurrency).to.equal(
+            this.currency.formatCurrencyLocalized
+          )
+          done()
+        }
+        this.SubscriptionController.plansPage(this.req, this.res)
+      })
+      it('uses formatCurrencyDefault when variant is default', function (done) {
+        this.res.render = (page, opts) => {
+          expect(opts.formatCurrency).to.equal(
+            this.SubscriptionHelper.formatCurrencyDefault
+          )
+          done()
+        }
+        this.SubscriptionController.plansPage(this.req, this.res)
+      })
+    })
+
+    describe('website-redesign-plans test', function () {
+      beforeEach(function () {
+        this.req.query = {}
+      })
+      describe('"default" variant', function () {
+        // note: if test is not active, default variant is assigned
+        beforeEach(function () {
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'website-redesign-plans')
+            .resolves({
+              variant: 'default',
+            })
+        })
+
+        it('renders "default" variant', function (done) {
+          this.res.render = page => {
+            page.should.equal('subscriptions/plans')
+            expect(this.res.redirect).to.not.have.been.called
+            done()
+          }
+          this.SubscriptionController.plansPage(this.req, this.res)
+        })
+      })
+
+      describe('"new-design" variant', function () {
+        beforeEach(function () {
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'website-redesign-plans')
+            .resolves({
+              variant: 'new-design',
+            })
+        })
+
+        it('redirects to "new-design" variant', function (done) {
+          this.res.callback = () => {
+            expect(this.res.redirect).to.have.been.calledWith(
+              302,
+              '/user/subscription/plans-2'
+            )
+            done()
+          }
+          this.SubscriptionController.plansPage(this.req, this.res)
+        })
+
+        it('passes query params when redirecting to new design variant', function (done) {
+          this.req.query = { currency: 'USD' }
+          this.res.callback = () => {
+            expect(this.res.redirect).to.have.been.calledWith(
+              302,
+              '/user/subscription/plans-2?currency=USD'
+            )
+            done()
+          }
+          this.SubscriptionController.plansPage(this.req, this.res)
+        })
+      })
+      describe('"light-design" variant', function () {
+        beforeEach(function () {
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'website-redesign-plans')
+            .resolves({
+              variant: 'light-design',
+            })
+        })
+
+        it('renders "light-design" variant', function (done) {
+          this.res.callback = () => {
+            expect(this.res.redirect).to.have.been.calledWith(
+              302,
+              '/user/subscription/plans-3'
+            )
+            done()
+          }
+          this.SubscriptionController.plansPage(this.req, this.res)
+        })
+
+        it('passes query params when redirecting to new design variant', function (done) {
+          this.req.query = { currency: 'USD' }
+          this.res.callback = () => {
+            expect(this.res.redirect).to.have.been.calledWith(
+              302,
+              '/user/subscription/plans-3?currency=USD'
+            )
+            done()
+          }
           this.SubscriptionController.plansPage(this.req, this.res)
         })
       })
@@ -540,9 +660,11 @@ describe('SubscriptionController', function () {
     describe('showLATAMBanner', function () {
       describe('latam variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'latam',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'geo-pricing-latam-v2')
+            .resolves({
+              variant: 'latam',
+            })
         })
         it('should return true for Mexican users', function (done) {
           this.res.render = (page, opts) => {
@@ -602,9 +724,11 @@ describe('SubscriptionController', function () {
       })
       describe('default variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'default',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'geo-pricing-latam-v2')
+            .resolves({
+              variant: 'default',
+            })
         })
         it('should return false', function (done) {
           this.res.render = (page, opts) => {
@@ -617,6 +741,32 @@ describe('SubscriptionController', function () {
           })
           this.SubscriptionController.plansPageLightDesign(this.req, this.res)
         })
+      })
+    })
+
+    describe('localCcyAssignment', function () {
+      it('uses formatCurrencyLocalized when variant is enabled', function (done) {
+        this.SplitTestV2Hander.promises.getAssignment
+          .withArgs(this.req, this.res, 'local-ccy-format-v2')
+          .resolves({
+            variant: 'enabled',
+          })
+        this.res.render = (page, opts) => {
+          expect(opts.formatCurrency).to.equal(
+            this.currency.formatCurrencyLocalized
+          )
+          done()
+        }
+        this.SubscriptionController.plansPageLightDesign(this.req, this.res)
+      })
+      it('uses formatCurrencyDefault when variant is default', function (done) {
+        this.res.render = (page, opts) => {
+          expect(opts.formatCurrency).to.equal(
+            this.SubscriptionHelper.formatCurrencyDefault
+          )
+          done()
+        }
+        this.SubscriptionController.plansPageLightDesign(this.req, this.res)
       })
     })
   })
@@ -641,7 +791,6 @@ describe('SubscriptionController', function () {
 
     describe('with a user with subscription', function () {
       it('should redirect to the subscription dashboard', function (done) {
-        this.PlansLocator.findLocalPlanInSettings.returns({})
         this.LimitationsManager.promises.userHasV1OrV2Subscription.resolves(
           true
         )
@@ -706,9 +855,11 @@ describe('SubscriptionController', function () {
     describe('showLATAMBanner', function () {
       describe('latam variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'latam',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'geo-pricing-latam-v2')
+            .resolves({
+              variant: 'latam',
+            })
         })
         it('should return true for Mexican users', function (done) {
           this.res.render = (page, opts) => {
@@ -783,9 +934,11 @@ describe('SubscriptionController', function () {
       })
       describe('default variant', function () {
         beforeEach(function () {
-          this.SplitTestV2Hander.promises.getAssignment.resolves({
-            variant: 'default',
-          })
+          this.SplitTestV2Hander.promises.getAssignment
+            .withArgs(this.req, this.res, 'website-redesign-plan')
+            .resolves({
+              variant: 'default',
+            })
         })
         it('should return false', function (done) {
           this.res.render = (page, opts) => {

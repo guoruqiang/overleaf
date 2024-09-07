@@ -63,7 +63,7 @@ import { useUserContext } from '@/shared/context/user-context'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
 import { setMathPreview } from '@/features/source-editor/extensions/math-preview'
 import { useRangesContext } from '@/features/review-panel-new/context/ranges-context'
-import { updateRanges } from '@/features/source-editor/extensions/track-changes'
+import { updateRanges } from '@/features/source-editor/extensions/ranges'
 import { useThreadsContext } from '@/features/review-panel-new/context/threads-context'
 
 function useCodeMirrorScope(view: EditorView) {
@@ -497,7 +497,7 @@ function useCodeMirrorScope(view: EditorView) {
       // dispatch in a timeout, so the dispatch isn't in the same cycle as the edit which caused it
       window.setTimeout(() => {
         view.dispatch(
-          setAnnotations(view.state.doc, annotations || []),
+          setAnnotations(view.state, annotations || []),
           // reconfigure the compile log lint source, so it runs once with the new data
           showCompileLogDiagnostics(enableCompileLogLinterRef.current)
         )

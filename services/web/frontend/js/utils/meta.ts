@@ -46,7 +46,8 @@ import { PasswordStrengthOptions } from '../../../types/password-strength-option
 import { Subscription as ProjectDashboardSubscription } from '../../../types/project/dashboard/subscription'
 import { ThirdPartyIds } from '../../../types/third-party-ids'
 import { Publisher } from '../../../types/subscription/dashboard/publisher'
-
+import { DefaultNavbarMetadata } from '@/features/ui/components/types/default-navbar-metadata'
+import { FatFooterMetadata } from '@/features/ui/components/types/fat-footer-metadata'
 export interface Meta {
   'ol-ExposedSettings': ExposedSettings
   'ol-allInReconfirmNotificationPeriods': UserEmailData[]
@@ -82,6 +83,7 @@ export interface Meta {
   'ol-error': { name: string } | undefined
   'ol-expired': boolean
   'ol-features': Features
+  'ol-footer': FatFooterMetadata
   'ol-fromPlansPage': boolean
   'ol-gitBridgeEnabled': boolean
   'ol-gitBridgePublicBaseUrl': string
@@ -122,6 +124,7 @@ export interface Meta {
   'ol-languages': SpellCheckLanguage[]
   'ol-learnedWords': string[]
   'ol-legacyEditorThemes': string[]
+  'ol-linkSharingEnforcement': boolean
   'ol-linkSharingWarning': boolean
   'ol-loadingText': string
   'ol-managedGroupSubscriptions': ManagedGroupSubscription[]
@@ -135,11 +138,11 @@ export interface Meta {
   'ol-memberGroupSubscriptions': MemberGroupSubscription[]
   'ol-memberOfSSOEnabledGroups': GroupSSOLinkingStatus[]
   'ol-members': MinimalUser[]
+  'ol-navbar': DefaultNavbarMetadata
   'ol-no-single-dollar': boolean
   'ol-notifications': NotificationType[]
   'ol-notificationsInstitution': InstitutionType[]
   'ol-oauthProviders': OAuthProviders
-  'ol-optionalPersonalAccessToken': boolean
   'ol-overallThemes': OverallThemeMeta[]
   'ol-passwordStrengthOptions': PasswordStrengthOptions
   'ol-personalAccessTokens': AccessToken[] | undefined
@@ -161,6 +164,7 @@ export interface Meta {
   'ol-reconfirmedViaSAML': string
   'ol-recurlyApiKey': string
   'ol-recurlySubdomain': string
+  'ol-ro-mirror-on-client-no-local-storage': boolean
   'ol-samlError': SAMLError | undefined
   'ol-settingsGroupSSO': { enabled: boolean } | undefined
   'ol-settingsPlans': Plan[]
@@ -171,7 +175,6 @@ export interface Meta {
   'ol-showGroupsAndEnterpriseBanner': boolean
   'ol-showInrGeoBanner': boolean
   'ol-showLATAMBanner': boolean
-  'ol-showPersonalAccessToken': boolean
   'ol-showSupport': boolean
   'ol-showSymbolPalette': boolean
   'ol-showTemplatesServerPro': boolean
@@ -206,6 +209,7 @@ export interface Meta {
   'ol-usersBestSubscription': ProjectDashboardSubscription | undefined
   'ol-usersEmail': string | undefined
   'ol-validationStatus': ValidationStatus
+  'ol-websiteRedesignPlansVariant': 'default' | 'light-design' | 'new-design'
   'ol-wikiEnabled': boolean
   'ol-writefullCssUrl': string
   'ol-writefullEnabled': boolean
