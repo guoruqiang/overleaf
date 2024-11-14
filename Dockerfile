@@ -111,6 +111,15 @@ ENV GRACEFUL_SHUTDOWN_DELAY_SECONDS=1
 ENV NODE_ENV="production"
 ENV LOG_LEVEL="info"
 
+FROM sharelatex/sharelatex
+RUN tlmgr option repository https://mirrors.tuna.tsinghua.edu.cn/CTAN/systems/texlive/tlnet
+RUN tlmgr update --self --all
+RUN tlmgr install scheme-full
+RUN echo '$#! /bin/bash\npushd /usr/local/bin\nfor f in `ls /usr/local/texlive/2023/bin/x86_64-linux`\ndo\n[ -f $f ] || ln -s /usr/local/texlive/2023/bin/x86_64-linux/$f $f\ndone' > /overleaf/link.sh
+RUN cat /overleaf/link.sh
+RUN chmod +x /overleaf/link.sh
+RUN bash /overleaf/link.sh
+WORKDIR /
 
 EXPOSE 80
 
