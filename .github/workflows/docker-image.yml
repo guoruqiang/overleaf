@@ -1,9 +1,5 @@
 name: Publish Docker image build
 
-# on:
-#   push:
-#     branches:
-#       - 'main'
 on:
   push:
     tags:
@@ -30,6 +26,9 @@ jobs:
 
       - name: Check out the repo
         uses: actions/checkout@v3
+
+      - name: List files in server-ce
+        run: ls -R server-ce
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
