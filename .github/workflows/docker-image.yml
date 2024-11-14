@@ -1,9 +1,5 @@
 name: Publish Docker image build
 
-# on:
-#   push:
-#     branches:
-#       - 'main'
 on:
   push:
     tags:
@@ -31,6 +27,9 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
+      - name: List files in server-ce
+        run: ls -R server-ce
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -51,7 +50,9 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: server-ce
-          file: server-ce/Dockerfile
+          file: Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+          
