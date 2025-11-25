@@ -35,12 +35,12 @@ module.exports = class AbstractPersistor {
   /**
    * @param location
    * @param name
-   * @param {Object} opts
-   * @param {Number} opts.start
-   * @param {Number} opts.end
+   * @param {Object} [opts]
+   * @param {Number} [opts.start]
+   * @param {Number} [opts.end]
    * @return {Promise<NodeJS.ReadableStream>}
    */
-  async getObjectStream(location, name, opts) {
+  async getObjectStream(location, name, opts = {}) {
     throw new NotImplementedError('method not implemented in persistor', {
       method: 'getObjectStream',
       location,
@@ -158,6 +158,23 @@ module.exports = class AbstractPersistor {
       method: 'directorySize',
       location,
       name,
+    })
+  }
+
+  /**
+   * List objects in a directory, returning the full keys.
+   *
+   * Suitable only for directories where the number of keys is known to be small.
+   *
+   * @param {string} location
+   * @param {string} prefix
+   * @returns {Promise<Array<string>>}
+   */
+  async listDirectoryKeys(location, prefix) {
+    throw new NotImplementedError('method not implemented in persistor', {
+      method: 'listDirectoryKeys',
+      location,
+      prefix,
     })
   }
 }

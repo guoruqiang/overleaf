@@ -1,4 +1,3 @@
-version: '2.2'
 services:
     sharelatex:
         restart: always
@@ -41,10 +40,6 @@ services:
             # Disables email confirmation requirement
             EMAIL_CONFIRMATION_DISABLED: 'true'
 
-            # temporary fix for LuaLaTex compiles
-            # see https://github.com/overleaf/overleaf/issues/695
-            TEXMFVAR: /var/lib/overleaf/tmp/texmf-var
-
             ## Set for SSL via nginx-proxy
             #VIRTUAL_HOST: 103.112.212.22
 
@@ -78,11 +73,19 @@ services:
             ## Server Pro ##
             ################
 
-            ## Sandboxed Compiles: https://github.com/overleaf/overleaf/wiki/Server-Pro:-Sandboxed-Compiles
+            ## The Community Edition is intended for use in environments where all users are trusted and is not appropriate for
+            ## scenarios where isolation of users is required. Sandboxed Compiles are not available in the Community Edition,
+            ## so the following environment variables must be commented out to avoid compile issues.
+            ##
+            ## Sandboxed Compiles: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
             SANDBOXED_COMPILES: 'true'
-            SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true'
             ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
-            SANDBOXED_COMPILES_HOST_DIR: '/home/user/sharelatex_data/data/compiles'
+            SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
+            ### Bind-mount source for /var/lib/overleaf/data/output inside the container.
+            SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
+            ### Backwards compatibility (before Server Pro 5.5)
+            DOCKER_RUNNER: 'true'
+            SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true'
 
             ## Works with test LDAP server shown at bottom of docker compose
             # OVERLEAF_LDAP_URL: 'ldap://ldap:389'
@@ -103,12 +106,12 @@ services:
 
     mongo:
         restart: always
-        image: mongo:5.0
+        image: mongo:6.0
         container_name: mongo
         command: '--replSet overleaf'
         volumes:
-            - ./data/mongo_data:/data/db
-            - ./data/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
+            - ~/mongo_data:/data/db
+            - ./bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
         environment:
           MONGO_INITDB_DATABASE: sharelatex
         extra_hosts:
@@ -116,7 +119,7 @@ services:
           # This override is not needed when running the setup after starting up mongo.
           - mongo:127.0.0.1
         healthcheck:
-            test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
+            test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
             interval: 10s
             timeout: 10s
             retries: 5

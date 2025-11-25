@@ -140,17 +140,26 @@ async function verifyMd5(persistor, bucket, key, sourceMd5, destMd5 = null) {
 }
 
 function wrapError(error, message, params, ErrorType) {
+  params = {
+    ...params,
+    cause: error,
+  }
+
+  // aws-sdk v3 renames `code` to `Code`, but it's not always present, so we
+  // add a fallback to `name` for compatibility.
+  const errorCode = error.code || error.Code || error.name
+
   if (
     error instanceof NotFoundError ||
     ['NoSuchKey', 'NotFound', 404, 'AccessDenied', 'ENOENT'].includes(
-      error.code
+      errorCode
     ) ||
     (error.response && error.response.statusCode === 404)
   ) {
     return new NotFoundError('no such file', params, error)
   } else if (
     params.ifNoneMatch === '*' &&
-    (error.code === 'PreconditionFailed' ||
+    (errorCode === 'PreconditionFailed' ||
       error.response?.statusCode === 412 ||
       error instanceof AlreadyWrittenError)
   ) {

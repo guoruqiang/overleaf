@@ -7,7 +7,6 @@ import useFetchMock from '../../hooks/use-fetch-mock'
 import { ScopeDecorator } from '../../decorators/scope'
 import { useScope } from '../../hooks/use-scope'
 import getMeta from '@/utils/meta'
-import { bsVersionDecorator } from '../../../../.storybook/utils/with-bootstrap-switcher'
 
 export const MinimalFeatures = args => {
   useFetchMock(mockCreateFileModalFetch)
@@ -38,9 +37,7 @@ export const ErrorImportingFileFromExternalURL = args => {
   useFetchMock(fetchMock => {
     mockCreateFileModalFetch(fetchMock)
 
-    fetchMock.post('express:/project/:projectId/linked_file', 500, {
-      overwriteRoutes: true,
-    })
+    fetchMock.post('express:/project/:projectId/linked_file', 500)
   })
 
   getMeta('ol-ExposedSettings').hasLinkUrlFeature = true
@@ -53,9 +50,7 @@ export const ErrorImportingFileFromReferenceProvider = args => {
   useFetchMock(fetchMock => {
     mockCreateFileModalFetch(fetchMock)
 
-    fetchMock.post('express:/project/:projectId/linked_file', 500, {
-      overwriteRoutes: true,
-    })
+    fetchMock.post('express:/project/:projectId/linked_file', 500)
   })
 
   return <FileTreeModalCreateFile {...args} />
@@ -91,7 +86,4 @@ export default {
   title: 'Editor / Modals / Create File',
   component: FileTreeModalCreateFile,
   decorators: [ScopeDecorator],
-  argTypes: {
-    ...bsVersionDecorator.argTypes,
-  },
 }

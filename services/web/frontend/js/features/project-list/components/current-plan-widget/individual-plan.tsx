@@ -1,10 +1,7 @@
 import { useTranslation, Trans } from 'react-i18next'
 import { IndividualPlanSubscription } from '../../../../../../types/project/dashboard/subscription'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '@/shared/components/material-icon'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import classnames from 'classnames'
 
 type IndividualPlanProps = Pick<
   IndividualPlanSubscription,
@@ -17,33 +14,30 @@ function IndividualPlan({
   remainingTrialDays,
 }: IndividualPlanProps) {
   const { t } = useTranslation()
+  const planNameComponent = <strong translate="no" />
   const currentPlanLabel =
     remainingTrialDays >= 0 ? (
       remainingTrialDays === 1 ? (
-        <Trans i18nKey="trial_last_day" components={{ b: <strong /> }} />
+        <Trans i18nKey="trial_last_day" components={{ b: planNameComponent }} />
       ) : (
         <Trans
           i18nKey="trial_remaining_days"
-          components={{ b: <strong /> }}
+          components={{ b: planNameComponent }}
           values={{ days: remainingTrialDays }}
           shouldUnescape
           tOptions={{ interpolation: { escapeValue: true } }}
         />
       )
     ) : (
-      <Trans i18nKey="premium_plan_label" components={{ b: <strong /> }} />
+      <Trans
+        i18nKey="premium_plan_label"
+        components={{ b: planNameComponent }}
+      />
     )
 
   return (
     <>
-      <span
-        className={classnames(
-          'current-plan-label',
-          bsVersion({ bs5: 'd-md-none', bs3: 'visible-xs' })
-        )}
-      >
-        {currentPlanLabel}
-      </span>
+      <span className="current-plan-label d-md-none">{currentPlanLabel}</span>
       <OLTooltip
         description={t('plan_tooltip', { plan: plan.name })}
         id="individual-plan"
@@ -51,18 +45,10 @@ function IndividualPlan({
       >
         <a
           href={featuresPageURL}
-          className={classnames(
-            'current-plan-label',
-            bsVersion({ bs5: 'd-none d-md-inline-block', bs3: 'hidden-xs' })
-          )}
+          className="current-plan-label d-none d-md-inline-block"
         >
           {currentPlanLabel}&nbsp;
-          <BootstrapVersionSwitcher
-            bs3={<span className="info-badge" />}
-            bs5={
-              <MaterialIcon type="info" className="current-plan-label-icon" />
-            }
-          />
+          <MaterialIcon type="info" className="current-plan-label-icon" />
         </a>
       </OLTooltip>
     </>

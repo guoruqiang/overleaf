@@ -10,9 +10,8 @@ import {
 } from '../../../../../../../../types/project/dashboard/api'
 import { useProjectTags } from '@/features/project-list/hooks/use-project-tags'
 import { isSmallDevice } from '../../../../../../infrastructure/event-tracking'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
 
 type CopyButtonProps = {
   project: Project
@@ -111,8 +110,7 @@ const CopyProjectButtonTooltip = memo(function CopyProjectButtonTooltip({
               variant="link"
               accessibilityLabel={text}
               className="action-btn"
-              icon={bsVersion({ bs5: 'file_copy', bs3: 'files-o' })}
-              bs3Props={{ fw: true }}
+              icon="file_copy"
             />
           </span>
         </OLTooltip>

@@ -2,16 +2,27 @@ const fs = require('node:fs')
 const { pipeline } = require('node:stream/promises')
 const { PassThrough } = require('node:stream')
 const { Storage, IdempotencyStrategy } = require('@google-cloud/storage')
-const { WriteError, ReadError, NotFoundError } = require('./Errors')
+const {
+  WriteError,
+  ReadError,
+  NotFoundError,
+  NotImplementedError,
+} = require('./Errors')
 const asyncPool = require('tiny-async-pool')
 const AbstractPersistor = require('./AbstractPersistor')
 const PersistorHelper = require('./PersistorHelper')
 const Logger = require('@overleaf/logger')
+const zlib = require('node:zlib')
 
 module.exports = class GcsPersistor extends AbstractPersistor {
   constructor(settings) {
-    super()
+    if (settings.storageClass) {
+      throw new NotImplementedError(
+        'Use default bucket class for GCS instead of settings.storageClass'
+      )
+    }
 
+    super()
     this.settings = settings
 
     // endpoint settings will be null by default except for tests
@@ -117,12 +128,14 @@ module.exports = class GcsPersistor extends AbstractPersistor {
       .file(key)
       .createReadStream({ decompress: false, ...opts })
 
+    let contentEncoding
     try {
       await new Promise((resolve, reject) => {
         stream.on('response', res => {
           switch (res.statusCode) {
             case 200: // full response
             case 206: // partial response
+              contentEncoding = res.headers['content-encoding']
               return resolve()
             case 404:
               return reject(new NotFoundError())
@@ -143,7 +156,11 @@ module.exports = class GcsPersistor extends AbstractPersistor {
     }
     // Return a PassThrough stream with a minimal interface. It will buffer until the caller starts reading. It will emit errors from the source stream (Stream.pipeline passes errors along).
     const pass = new PassThrough()
-    pipeline(stream, observer, pass).catch(() => {})
+    const transformer = []
+    if (contentEncoding === 'gzip' && opts.autoGunzip) {
+      transformer.push(zlib.createGunzip())
+    }
+    pipeline(stream, observer, ...transformer, pass).catch(() => {})
     return pass
   }
 
@@ -180,7 +197,7 @@ module.exports = class GcsPersistor extends AbstractPersistor {
         .bucket(bucketName)
         .file(key)
         .getMetadata()
-      return metadata.size
+      return parseInt(metadata.size, 10)
     } catch (err) {
       throw PersistorHelper.wrapError(
         err,
@@ -271,25 +288,38 @@ module.exports = class GcsPersistor extends AbstractPersistor {
     } while (query)
   }
 
-  async directorySize(bucketName, key) {
-    let files
-    const prefix = ensurePrefixIsDirectory(key)
-
+  async #listDirectory(bucketName, prefix) {
     try {
       const [response] = await this.storage
         .bucket(bucketName)
         .getFiles({ prefix })
-      files = response
+      return response
     } catch (err) {
       throw PersistorHelper.wrapError(
         err,
         'failed to list objects in GCS',
-        { bucketName, key },
+        { bucketName, prefix },
         ReadError
       )
     }
+  }
 
-    return files.reduce((acc, file) => Number(file.metadata.size) + acc, 0)
+  async directorySize(bucketName, key) {
+    const prefix = ensurePrefixIsDirectory(key)
+    const files = await this.#listDirectory(bucketName, prefix)
+
+    return files.reduce(
+      (acc, file) => parseInt(file.metadata.size, 10) + acc,
+      0
+    )
+  }
+
+  async listDirectoryKeys(bucketName, prefix) {
+    const files = await this.#listDirectory(
+      bucketName,
+      ensurePrefixIsDirectory(prefix)
+    )
+    return files.map(file => file.name)
   }
 
   async checkIfObjectExists(bucketName, key) {

@@ -1,20 +1,23 @@
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const fsPromises = require('node:fs/promises')
-const globCallbacks = require('glob')
+const { glob } = require('glob')
 const Path = require('node:path')
 const { PassThrough } = require('node:stream')
 const { pipeline } = require('node:stream/promises')
-const { promisify } = require('node:util')
 
 const AbstractPersistor = require('./AbstractPersistor')
 const { ReadError, WriteError, NotImplementedError } = require('./Errors')
 const PersistorHelper = require('./PersistorHelper')
 
-const glob = promisify(globCallbacks)
-
 module.exports = class FSPersistor extends AbstractPersistor {
   constructor(settings = {}) {
+    if (settings.storageClass) {
+      throw new NotImplementedError(
+        'FS backend does not support storage classes'
+      )
+    }
+
     super()
     this.useSubdirectories = Boolean(settings.useSubdirectories)
   }
@@ -71,11 +74,16 @@ module.exports = class FSPersistor extends AbstractPersistor {
 
   // opts may be {start: Number, end: Number}
   async getObjectStream(location, name, opts = {}) {
+    if (opts.autoGunzip) {
+      throw new NotImplementedError(
+        'opts.autoGunzip is not supported by FS backend. Configure GCS or S3 backend instead, get in touch with support for further information.'
+      )
+    }
     const observer = new PersistorHelper.ObserverStream({
       metric: 'fs.ingress', // ingress to us from disk
       bucket: location,
     })
-    const fsPath = this._getFsPath(location, name)
+    const fsPath = this._getFsPath(location, name, opts.useSubdirectories)
 
     try {
       opts.fd = await fsPromises.open(fsPath, 'r')
@@ -186,6 +194,11 @@ module.exports = class FSPersistor extends AbstractPersistor {
     }
   }
 
+  async listDirectoryKeys(location, name) {
+    const fsPath = this._getFsPath(location, name)
+    return await this._listDirectory(fsPath)
+  }
+
   async checkIfObjectExists(location, name) {
     const fsPath = this._getFsPath(location, name)
     try {
@@ -284,9 +297,9 @@ module.exports = class FSPersistor extends AbstractPersistor {
     await fsPromises.rm(dirPath, { force: true, recursive: true })
   }
 
-  _getFsPath(location, key) {
+  _getFsPath(location, key, useSubdirectories = false) {
     key = key.replace(/\/$/, '')
-    if (!this.useSubdirectories) {
+    if (!this.useSubdirectories && !useSubdirectories) {
       key = key.replace(/\//g, '_')
     }
     return Path.join(location, key)

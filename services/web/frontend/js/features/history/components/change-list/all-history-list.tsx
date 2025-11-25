@@ -8,13 +8,12 @@ import { useUserContext } from '../../../../shared/context/user-context'
 import useDropdownActiveItem from '../../hooks/use-dropdown-active-item'
 import { useHistoryContext } from '../../context/history-context'
 import { useEditorContext } from '../../../../shared/context/editor-context'
-import OLPopover from '@/features/ui/components/ol/ol-popover'
-import OLOverlay from '@/features/ui/components/ol/ol-overlay'
+import OLPopover from '@/shared/components/ol/ol-popover'
+import OLOverlay from '@/shared/components/ol/ol-overlay'
 import Close from '@/shared/components/close'
 import { Trans, useTranslation } from 'react-i18next'
 import MaterialIcon from '@/shared/components/material-icon'
 import useTutorial from '@/shared/hooks/promotions/use-tutorial'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 function AllHistoryList() {
   const { id: currentUserId } = useUserContext()
@@ -102,18 +101,6 @@ function AllHistoryList() {
     name: 'react-history-buttons-tutorial',
   })
 
-  const {
-    showPopup: showRestorePromo,
-    tryShowingPopup: tryShowingRestorePromo,
-    hideUntilReload: hideRestorePromoUntilReload,
-    completeTutorial: completeRestorePromo,
-  } = useTutorial('history-restore-promo', {
-    name: 'history-restore-promo',
-  })
-  const inFileRestoreSplitTest = useFeatureFlag('revert-file')
-  const inProjectRestoreSplitTest = useFeatureFlag('revert-project')
-
-  const hasVisibleUpdates = visibleUpdates.length > 0
   const isMoreThanOneVersion = visibleUpdates.length > 1
   const [layoutSettled, setLayoutSettled] = useState(false)
 
@@ -127,9 +114,6 @@ function AllHistoryList() {
     const hasCompletedHistoryTutorial = inactiveTutorials.includes(
       'react-history-buttons-tutorial'
     )
-    const hasCompletedRestorePromotion = inactiveTutorials.includes(
-      'history-restore-promo'
-    )
 
     // wait for the layout to settle before showing popover, to avoid a flash/ instant move
     if (!layoutSettled) {
@@ -141,19 +125,8 @@ function AllHistoryList() {
       !isPaywallAndNonComparable
     ) {
       tryShowingHistoryTutorial()
-    } else if (
-      !hasCompletedRestorePromotion &&
-      inFileRestoreSplitTest &&
-      inProjectRestoreSplitTest &&
-      hasVisibleUpdates
-    ) {
-      tryShowingRestorePromo()
     }
   }, [
-    hasVisibleUpdates,
-    inFileRestoreSplitTest,
-    inProjectRestoreSplitTest,
-    tryShowingRestorePromo,
     inactiveTutorials,
     isMoreThanOneVersion,
     isPaywallAndNonComparable,
@@ -169,7 +142,6 @@ function AllHistoryList() {
   // meaning the tutorial will show on page reload/ re-navigation
   const hidePopover = () => {
     hideHistoryTutorialUntilReload()
-    hideRestorePromoUntilReload()
   }
 
   if (showHistoryTutorial) {
@@ -181,7 +153,6 @@ function AllHistoryList() {
         onHide={hidePopover}
         // using scrollerRef to position the popover in the middle of the viewport
         target={scrollerRef.current}
-        // Only used in Bootstrap 5. In Bootstrap 3 this is done with CSS.
         popperConfig={{
           modifiers: [
             {
@@ -192,11 +163,9 @@ function AllHistoryList() {
             },
           ],
         }}
-        bs3Props={{ shouldUpdatePosition: true }}
       >
         <OLPopover
           id="popover-react-history-tutorial"
-          bs3Props={{ arrowOffsetTop: 10 }}
           title={
             <span>
               {t('react_history_tutorial_title')}{' '}
@@ -222,49 +191,6 @@ function AllHistoryList() {
                 className="history-dropdown-icon-inverted"
               />,
               <a href="https://www.overleaf.com/learn/latex/Using_the_History_feature" />, // eslint-disable-line jsx-a11y/anchor-has-content, react/jsx-key
-            ]}
-          />
-        </OLPopover>
-      </OLOverlay>
-    )
-  } else if (showRestorePromo) {
-    popover = (
-      <OLOverlay
-        placement="left-start"
-        show={showRestorePromo}
-        rootClose
-        onHide={hidePopover}
-        // using scrollerRef to position the popover in the middle of the viewport
-        target={scrollerRef.current}
-        bs3Props={{ shouldUpdatePosition: true }}
-      >
-        <OLPopover
-          id="popover-history-restore-promo"
-          bs3Props={{ arrowOffsetTop: 10 }}
-          title={
-            <span>
-              {t('history_restore_promo_title')}
-              <Close
-                variant="dark"
-                onDismiss={() =>
-                  completeRestorePromo({
-                    event: 'promo-click',
-                    action: 'complete',
-                  })
-                }
-              />
-            </span>
-          }
-          className="dark-themed history-popover"
-        >
-          <Trans
-            i18nKey="history_restore_promo_content"
-            components={[
-              // eslint-disable-next-line react/jsx-key
-              <MaterialIcon
-                type="more_vert"
-                className="history-restore-promo-icon"
-              />,
             ]}
           />
         </OLPopover>

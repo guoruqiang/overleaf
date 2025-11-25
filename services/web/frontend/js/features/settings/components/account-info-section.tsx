@@ -7,12 +7,12 @@ import {
 import getMeta from '../../../utils/meta'
 import useAsync from '../../../shared/hooks/use-async'
 import { useUserContext } from '../../../shared/context/user-context'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
-import OLFormControl from '@/features/ui/components/ol/ol-form-control'
-import FormText from '@/features/ui/components/bootstrap-5/form/form-text'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLFormText from '@/shared/components/ol/ol-form-text'
 
 function AccountInfoSection() {
   const { t } = useTranslation()
@@ -70,7 +70,7 @@ function AccountInfoSection() {
 
   return (
     <>
-      <h3>{t('update_account_info')}</h3>
+      <h3 id="update-account-info">{t('update_account_info')}</h3>
       <form id="account-info-form" onSubmit={handleSubmit}>
         {hasAffiliationsFeature ? null : (
           <ReadOrWriteFormGroup
@@ -127,9 +127,8 @@ function AccountInfoSection() {
               form="account-info-form"
               disabled={!isFormValid}
               isLoading={isLoading}
-              bs3Props={{
-                loading: isLoading ? `${t('saving')}…` : t('update'),
-              }}
+              loadingLabel={t('saving') + '…'}
+              aria-labelledby={isLoading ? undefined : 'update-account-info'}
             >
               {t('update')}
             </OLButton>
@@ -196,7 +195,7 @@ function ReadOrWriteFormGroup({
         onInvalid={handleInvalid}
       />
       {validationMessage && (
-        <FormText type="error">{validationMessage}</FormText>
+        <OLFormText type="error">{validationMessage}</OLFormText>
       )}
     </OLFormGroup>
   )

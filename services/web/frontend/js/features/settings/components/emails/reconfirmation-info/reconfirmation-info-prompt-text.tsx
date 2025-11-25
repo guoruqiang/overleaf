@@ -4,19 +4,16 @@ import { Institution } from '../../../../../../../types/institution'
 type ReconfirmationInfoPromptTextProps = {
   primary: boolean
   institutionName: Institution['name']
-  icon?: React.ReactElement // BS3 only
 }
 
 function ReconfirmationInfoPromptText({
   primary,
   institutionName,
-  icon,
 }: ReconfirmationInfoPromptTextProps) {
   const { t } = useTranslation()
 
   return (
     <>
-      {icon}
       <Trans
         i18nKey="are_you_still_at"
         values={{
@@ -40,7 +37,7 @@ function ReconfirmationInfoPromptText({
         href="/learn/how-to/Institutional_Email_Reconfirmation"
         target="_blank"
       >
-        {t('learn_more')}
+        {t('learn_more_about_email_reconfirmation')}
       </a>
       <br />
       {primary ? <i>{t('need_to_add_new_primary_before_remove')}</i> : null}

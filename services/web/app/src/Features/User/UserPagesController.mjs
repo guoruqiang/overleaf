@@ -1,16 +1,15 @@
-import UserGetter from './UserGetter.js'
+import UserGetter from './UserGetter.mjs'
 import OError from '@overleaf/o-error'
-import UserSessionsManager from './UserSessionsManager.js'
+import UserSessionsManager from './UserSessionsManager.mjs'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import AuthenticationController from '../Authentication/AuthenticationController.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import NewsletterManager from '../Newsletter/NewsletterManager.js'
-import SubscriptionLocator from '../Subscription/SubscriptionLocator.js'
+import AuthenticationController from '../Authentication/AuthenticationController.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import NewsletterManager from '../Newsletter/NewsletterManager.mjs'
+import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
 import _ from 'lodash'
 import { expressify } from '@overleaf/promise-utils'
-import Features from '../../infrastructure/Features.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
+import Features from '../../infrastructure/Features.mjs'
 import Modules from '../../infrastructure/Modules.js'
 
 async function settingsPage(req, res) {
@@ -79,7 +78,8 @@ async function settingsPage(req, res) {
     )
     personalAccessTokens = results?.[0] ?? []
   } catch (error) {
-    logger.error(OError.tag(error))
+    const err = OError.tag(error, 'listPersonalAccessTokens hook failed')
+    logger.error({ err, userId }, err.message)
   }
 
   let currentManagedUserAdminEmail
@@ -116,11 +116,6 @@ async function settingsPage(req, res) {
     )
   }
 
-  // Get the user's assignment for this page's Bootstrap 5 split test, which
-  // populates splitTestVariants with a value for the split test name and allows
-  // Pug to read it
-  await SplitTestHandler.promises.getAssignment(req, res, 'bootstrap-5')
-
   res.render('user/settings', {
     title: 'account_settings',
     user: {
@@ -138,16 +133,22 @@ async function settingsPage(req, res) {
         github: user.features.github,
         mendeley: user.features.mendeley,
         zotero: user.features.zotero,
+        papers: user.features.papers,
         references: user.features.references,
       },
       refProviders: {
         mendeley: Boolean(user.refProviders?.mendeley),
         zotero: Boolean(user.refProviders?.zotero),
+        papers: Boolean(user.refProviders?.papers),
       },
       writefull: {
         enabled: Boolean(user.writefull?.enabled),
       },
+      aiErrorAssistant: {
+        enabled: Boolean(user.aiErrorAssistant?.enabled),
+      },
     },
+    labsExperiments: user.labsExperiments ?? [],
     hasPassword: !!user.hashedPassword,
     shouldAllowEditingDetails,
     oauthProviders: UserPagesController._translateProviderDescriptions(
@@ -174,6 +175,7 @@ async function settingsPage(req, res) {
     gitBridgeEnabled: Settings.enableGitBridge,
     isSaas: Features.hasFeature('saas'),
     memberOfSSOEnabledGroups,
+    capabilities: [...req.capabilitySet],
   })
 }
 
@@ -184,6 +186,14 @@ async function accountSuspended(req, res) {
   res.render('user/accountSuspended', {
     title: 'your_account_is_suspended',
   })
+}
+
+async function reconfirmAccountPage(req, res) {
+  const pageData = {
+    reconfirm_email: req.session.reconfirm_email,
+  }
+
+  res.render('user/reconfirm', pageData)
 }
 
 const UserPagesController = {
@@ -214,8 +224,15 @@ const UserPagesController = {
     ) {
       AuthenticationController.setRedirectInSession(req, req.query.redir)
     }
+    const metadata = { robotsNoindexNofollow: false }
+    if (Object.keys(req.query).length !== 0) {
+      metadata.robotsNoindexNofollow = true
+    }
     res.render('user/login', {
-      title: 'login',
+      title: Settings.nav?.login_support_title || 'login',
+      login_support_title: Settings.nav?.login_support_title,
+      login_support_text: Settings.nav?.login_support_text,
+      metadata,
     })
   },
 
@@ -229,13 +246,7 @@ const UserPagesController = {
     res.render('user/one_time_login')
   },
 
-  renderReconfirmAccountPage(req, res) {
-    const pageData = {
-      reconfirm_email: req.session.reconfirm_email,
-    }
-    // when a user must reconfirm their account
-    res.render('user/reconfirm', pageData)
-  },
+  renderReconfirmAccountPage: expressify(reconfirmAccountPage),
 
   settingsPage: expressify(settingsPage),
 
@@ -288,7 +299,7 @@ const UserPagesController = {
     )
   },
 
-  compromisedPasswordPage(_, res) {
+  async compromisedPasswordPage(req, res) {
     res.render('user/compromised_password')
   },
 

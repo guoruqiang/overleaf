@@ -3,7 +3,7 @@ import { putJSON } from '../../../../../../../infrastructure/fetch-json'
 import { extendTrialUrl } from '../../../../../data/subscription-url'
 import { useLocation } from '../../../../../../../shared/hooks/use-location'
 import { debugConsole } from '@/utils/debugging'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 export default function ExtendTrialButton({
   isButtonDisabled,
@@ -33,9 +33,7 @@ export default function ExtendTrialButton({
       onClick={handleExtendTrial}
       disabled={isButtonDisabled}
       isLoading={isLoading}
-      bs3Props={{
-        loading: isLoading ? t('processing_uppercase') + '…' : buttonText,
-      }}
+      loadingLabel={t('processing_uppercase') + '…'}
     >
       {buttonText}
     </OLButton>

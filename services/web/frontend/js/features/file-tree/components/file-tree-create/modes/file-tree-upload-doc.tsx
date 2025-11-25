@@ -28,7 +28,7 @@ export default function FileTreeUploadDoc() {
   const { parentFolderId, cancel, droppedFiles, setDroppedFiles } =
     useFileTreeActionable()
   const { fileTreeData } = useFileTreeData()
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
 
   const [error, setError] = useState<string>()
 
@@ -176,7 +176,6 @@ export default function FileTreeUploadDoc() {
         // close the modal when all the uploads completed successfully
         .on('complete', result => {
           if (!result.failed.length) {
-            // $scope.$emit('done', { name: name })
             cancel()
           }
         })

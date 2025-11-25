@@ -74,6 +74,7 @@ export type RawSnapshot = {
   files: RawFileMap
   projectVersion?: string
   v2DocVersions?: RawV2DocVersions | null
+  timestamp?: string
 }
 
 export type RawHistory = {
@@ -132,6 +133,7 @@ export type RawScanOp = RawInsertOp | RawRemoveOp | RawRetainOp
 
 export type RawTextOperation = {
   textOperation: RawScanOp[]
+  contentHash?: string
 }
 
 export type RawAddCommentOperation = {

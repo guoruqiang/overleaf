@@ -1,7 +1,7 @@
 import PDFToolbarButton from './pdf-toolbar-button'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
-import OLButtonGroup from '@/features/ui/components/ol/ol-button-group'
+import OLButtonGroup from '@/shared/components/ol/ol-button-group'
 
 type PdfPageNumberControlProps = {
   setPage: (page: number) => void
@@ -57,6 +57,7 @@ function PdfPageNumberControl({
       <div className="pdfjs-page-number-input">
         <form onSubmit={handleSubmit}>
           <input
+            aria-label={t('page_current', { page })}
             inputMode="numeric"
             value={pageInputValue}
             onFocus={event => event.target.select()}

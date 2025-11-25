@@ -9,21 +9,21 @@ import withErrorBoundary from '../../../infrastructure/error-boundary'
 import PdfPreviewErrorBoundaryFallback from './pdf-preview-error-boundary-fallback'
 import { useDetachCompileContext as useCompileContext } from '../../../shared/context/detach-compile-context'
 import { captureException } from '../../../infrastructure/error-reporter'
-import * as eventTracking from '../../../infrastructure/event-tracking'
 import { getPdfCachingMetrics } from '../util/metrics'
 import { debugConsole } from '@/utils/debugging'
 import { usePdfPreviewContext } from '@/features/pdf-preview/components/pdf-preview-provider'
 import usePresentationMode from '../hooks/use-presentation-mode'
 import useMouseWheelZoom from '../hooks/use-mouse-wheel-zoom'
 import { PDFJS } from '../util/pdf-js'
+import { PDFFile } from '@ol-types/compile'
 
 type PdfJsViewerProps = {
   url: string
-  pdfFile: Record<string, any>
+  pdfFile: PDFFile
 }
 
 function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
 
   const { setError, firstRenderDone, highlights, position, setPosition } =
     useCompileContext()
@@ -62,10 +62,10 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
 
   // create the viewer when the container is mounted
   const handleContainer = useCallback(
-    parent => {
+    (parent: HTMLDivElement | null) => {
       if (parent) {
         try {
-          setPdfJsWrapper(new PDFJSWrapper(parent.firstChild))
+          setPdfJsWrapper(new PDFJSWrapper(parent.firstChild as HTMLDivElement))
         } catch (error: any) {
           setLoadingError(true)
           captureException(error)
@@ -144,6 +144,10 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       setRawScale(scale.scale)
     }
 
+    const handlePageChanging = (event: { pageNumber: number }) => {
+      setPage(event.pageNumber)
+    }
+
     // `pagesinit` fires when the data for rendering the first page is ready.
     pdfJsWrapper.eventBus.on('pagesinit', handlePagesinit)
     // `pagerendered` fires when a page was actually rendered.
@@ -151,12 +155,15 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
     // Once a page has been rendered we can set the initial current page number.
     pdfJsWrapper.eventBus.on('pagerendered', handleRenderedInitialPageNumber)
     pdfJsWrapper.eventBus.on('scalechanging', handleScaleChanged)
+    // `pagechanging` fires when the page number changes.
+    pdfJsWrapper.eventBus.on('pagechanging', handlePageChanging)
 
     return () => {
       pdfJsWrapper.eventBus.off('pagesinit', handlePagesinit)
       pdfJsWrapper.eventBus.off('pagerendered', handleRendered)
       pdfJsWrapper.eventBus.off('pagerendered', handleRenderedInitialPageNumber)
       pdfJsWrapper.eventBus.off('scalechanging', handleScaleChanged)
+      pdfJsWrapper.eventBus.off('pagechanging', handlePageChanging)
     }
   }, [pdfJsWrapper, firstRenderDone, startFetch])
 
@@ -168,10 +175,10 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       setStartFetch(performance.now())
 
       const abortController = new AbortController()
-      const handleFetchError = (err: Error) => {
+      const handleFetchError = (err: any) => {
         if (abortController.signal.aborted) return
         // The error is already logged at the call-site with additional context.
-        if (err instanceof PDFJS.MissingPDFException) {
+        if (err instanceof PDFJS.ResponseException && err.missing) {
           setError('rendering-error-expected')
         } else {
           setError('rendering-error')
@@ -254,14 +261,12 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
             )
 
             if (clickPosition) {
-              eventTracking.sendMB('jump-to-location', {
-                direction: 'pdf-location-in-code',
-                method: 'double-click',
-              })
-
               window.dispatchEvent(
                 new CustomEvent('synctex:sync-to-position', {
-                  detail: clickPosition,
+                  detail: {
+                    position: clickPosition,
+                    selectText: window.getSelection()?.toString(),
+                  },
                 })
               )
             }
@@ -385,7 +390,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
 
   // set the scale in response to zoom option changes
   const setZoom = useCallback(
-    zoom => {
+    (zoom: any) => {
       switch (zoom) {
         case 'zoom-in':
           if (pdfJsWrapper) {
@@ -430,7 +435,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
   }, [pdfJsWrapper])
 
   const handleKeyDown = useCallback(
-    event => {
+    (event: React.KeyboardEvent) => {
       if (!initialised || !pdfJsWrapper) {
         return
       }
@@ -480,6 +485,21 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
   const toolbarInfoLoaded =
     rawScale !== null && page !== null && totalPages !== null
 
+  // Remove the 'region' role from each PDF page container.
+  // This prevents polluting the landmark navigation menu for every page,
+  // which creates a poor screen reader experience. Page navigation should be handled
+  // by the toolbar controls.
+  useEffect(() => {
+    if (!initialised || !pdfJsWrapper) return
+
+    const pageElements = pdfJsWrapper.container.querySelectorAll(
+      'div[data-page-number][role="region"]'
+    )
+    pageElements.forEach(element => {
+      element.removeAttribute('role')
+    })
+  }, [initialised, pdfJsWrapper])
+
   /* eslint-disable jsx-a11y/no-noninteractive-tabindex */
   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
   return (
@@ -490,7 +510,12 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      <div className="pdfjs-viewer-inner" tabIndex={0} role="tabpanel">
+      <div
+        className="pdfjs-viewer-inner"
+        tabIndex={0}
+        role="tabpanel"
+        data-testid="pdfjs-viewer-inner"
+      >
         <div className="pdfViewer" />
       </div>
       {toolbarInfoLoaded && (
@@ -501,6 +526,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
           setPage={handlePageChange}
           page={page}
           totalPages={totalPages}
+          pdfContainer={pdfJsWrapper?.container}
         />
       )}
     </div>

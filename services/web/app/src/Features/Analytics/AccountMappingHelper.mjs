@@ -1,35 +1,38 @@
-export function extractAccountMappingsFromSubscription(
+const mappings = new Map([
+  ['salesforce_id', generateSubscriptionToSalesforceMapping],
+  ['v1_id', generateSubscriptionToV1Mapping],
+  ['recurlySubscription_id', generateSubscriptionToRecurlyMapping],
+])
+
+/**
+ * @typedef {(import('./types.d.ts').AccountMapping)} AccountMapping
+ * @import { StripePaymentProviderService } from '../../../../types/subscription/dashboard/subscription'
+ */
+
+/**
+ *
+ * @param {Object} subscription
+ * @param {Object} updatedSubscription
+ * @return {Array<AccountMapping>}
+ */
+function extractAccountMappingsFromSubscription(
   subscription,
   updatedSubscription
 ) {
   const accountMappings = []
-  if (
-    updatedSubscription.salesforce_id ||
-    updatedSubscription.salesforce_id === ''
-  ) {
-    if (subscription.salesforce_id !== updatedSubscription.salesforce_id) {
-      accountMappings.push(
-        generateSubscriptionToSalesforceMapping(
-          subscription.id,
-          updatedSubscription.salesforce_id
+  mappings.forEach((generateMapping, param) => {
+    if (updatedSubscription[param] || updatedSubscription[param] === '') {
+      if (subscription[param] !== updatedSubscription[param]) {
+        accountMappings.push(
+          generateMapping(subscription.id, updatedSubscription[param])
         )
-      )
+      }
     }
-  }
-  if (updatedSubscription.v1_id || updatedSubscription.v1_id === '') {
-    if (subscription.v1_id !== updatedSubscription.v1_id) {
-      accountMappings.push(
-        generateSubscriptionToV1Mapping(
-          subscription.id,
-          updatedSubscription.v1_id
-        )
-      )
-    }
-  }
+  })
   return accountMappings
 }
 
-export function generateV1Mapping(v1Id, salesforceId, createdAt) {
+function generateV1Mapping(v1Id, salesforceId, createdAt) {
   return {
     source: 'salesforce',
     sourceEntity: 'account',
@@ -65,7 +68,57 @@ function generateSubscriptionToSalesforceMapping(subscriptionId, salesforceId) {
   }
 }
 
+/**
+ *
+ * @param {string} subscriptionId
+ * @param {string} recurlyId
+ * @param {string} [createdAt] - Should be an ISO date
+ * @return {AccountMapping}
+ */
+function generateSubscriptionToRecurlyMapping(
+  subscriptionId,
+  recurlyId,
+  createdAt = new Date().toISOString()
+) {
+  return {
+    source: 'recurly',
+    sourceEntity: 'subscription',
+    sourceEntityId: recurlyId,
+    target: 'v2',
+    targetEntity: 'subscription',
+    targetEntityId: subscriptionId,
+    createdAt,
+  }
+}
+
+/**
+ *
+ * @param {string} subscriptionId
+ * @param {string} stripeId
+ * @param {StripePaymentProviderService} stripePaymentProviderService
+ * @param {string} [createdAt] - Should be an ISO date
+ * @return {AccountMapping}
+ */
+function generateSubscriptionToStripeMapping(
+  subscriptionId,
+  stripeId,
+  stripePaymentProviderService,
+  createdAt = new Date().toISOString()
+) {
+  return {
+    source: stripePaymentProviderService,
+    sourceEntity: 'subscription',
+    sourceEntityId: stripeId,
+    target: 'v2',
+    targetEntity: 'subscription',
+    targetEntityId: subscriptionId,
+    createdAt,
+  }
+}
+
 export default {
   extractAccountMappingsFromSubscription,
   generateV1Mapping,
+  generateSubscriptionToRecurlyMapping,
+  generateSubscriptionToStripeMapping,
 }

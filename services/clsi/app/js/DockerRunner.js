@@ -6,20 +6,11 @@ const dockerode = new Docker()
 const crypto = require('node:crypto')
 const async = require('async')
 const LockManager = require('./DockerLockManager')
-const fs = require('node:fs')
 const Path = require('node:path')
 const _ = require('lodash')
 
 const ONE_HOUR_IN_MS = 60 * 60 * 1000
 logger.debug('using docker runner')
-
-function usingSiblingContainers() {
-  return (
-    Settings != null &&
-    Settings.path != null &&
-    Settings.path.sandboxedCompilesHostDir != null
-  )
-}
 
 let containerMonitorTimeout
 let containerMonitorInterval
@@ -35,24 +26,6 @@ const DockerRunner = {
     compileGroup,
     callback
   ) {
-    if (usingSiblingContainers()) {
-      const _newPath = Settings.path.sandboxedCompilesHostDir
-      logger.debug(
-        { path: _newPath },
-        'altering bind path for sibling containers'
-      )
-      // Server Pro, example:
-      //   '/var/lib/overleaf/data/compiles/<project-id>'
-      //   ... becomes ...
-      //   '/opt/overleaf_data/data/compiles/<project-id>'
-      directory = Path.join(
-        Settings.path.sandboxedCompilesHostDir,
-        Path.basename(directory)
-      )
-    }
-
-    const volumes = { [directory]: '/compile' }
-
     command = command.map(arg =>
       arg.toString().replace('$COMPILE_DIR', '/compile')
     )
@@ -72,7 +45,32 @@ const DockerRunner = {
       image = `${Settings.texliveImageNameOveride}/${img[2]}`
     }
 
-    if (compileGroup === 'synctex' || compileGroup === 'wordcount') {
+    if (compileGroup === 'synctex-output') {
+      // In: directory = '/overleaf/services/clsi/output/projectId-userId/generated-files/buildId'
+      //             directory.split('/').slice(-3) === 'projectId-userId/generated-files/buildId'
+      //  sandboxedCompilesHostDirOutput = '/host/output'
+      // Out:                  directory = '/host/output/projectId-userId/generated-files/buildId'
+      directory = Path.join(
+        Settings.path.sandboxedCompilesHostDirOutput,
+        ...directory.split('/').slice(-3)
+      )
+    } else {
+      // In:   directory = '/overleaf/services/clsi/compiles/projectId-userId'
+      //                       Path.basename(directory) === 'projectId-userId'
+      //  sandboxedCompilesHostDirCompiles = '/host/compiles'
+      // Out:                    directory = '/host/compiles/projectId-userId'
+      directory = Path.join(
+        Settings.path.sandboxedCompilesHostDirCompiles,
+        Path.basename(directory)
+      )
+    }
+
+    const volumes = { [directory]: '/compile' }
+    if (
+      compileGroup === 'synctex' ||
+      compileGroup === 'synctex-output' ||
+      compileGroup === 'wordcount'
+    ) {
       volumes[directory] += ':ro'
     }
 
@@ -178,29 +176,35 @@ const DockerRunner = {
           return callback(error)
         }
 
-        DockerRunner.waitForContainer(name, timeout, (error, exitCode) => {
-          if (error != null) {
-            return callback(error)
+        DockerRunner.waitForContainer(
+          name,
+          timeout,
+          options,
+          (error, exitCode) => {
+            if (error != null) {
+              return callback(error)
+            }
+            if (exitCode === 137) {
+              // exit status from kill -9
+              const err = new Error('terminated')
+              err.terminated = true
+              return callback(err)
+            }
+            if (exitCode === 1) {
+              // exit status from chktex
+              const err = new Error('exited')
+              err.code = exitCode
+              return callback(err)
+            }
+            containerReturned = true
+            logger.debug(
+              // The seccomp policy is very large. Avoid logging it. _.omit deep clones.
+              { exitCode, options: _.omit(options, 'HostConfig.SecurityOpt') },
+              'docker container has exited'
+            )
+            callbackIfFinished()
           }
-          if (exitCode === 137) {
-            // exit status from kill -9
-            const err = new Error('terminated')
-            err.terminated = true
-            return callback(err)
-          }
-          if (exitCode === 1) {
-            // exit status from chktex
-            const err = new Error('exited')
-            err.code = exitCode
-            return callback(err)
-          }
-          containerReturned = true
-          if (options != null && options.HostConfig != null) {
-            options.HostConfig.SecurityOpt = null
-          }
-          logger.debug({ exitCode, options }, 'docker container has exited')
-          callbackIfFinished()
-        })
+        )
       }
     )
   },
@@ -215,11 +219,8 @@ const DockerRunner = {
   ) {
     const timeoutInSeconds = timeout / 1000
 
-    const dockerVolumes = {}
     for (const hostVol in volumes) {
       const dockerVol = volumes[hostVol]
-      dockerVolumes[dockerVol] = {}
-
       if (volumes[hostVol].slice(-3).indexOf(':r') === -1) {
         volumes[hostVol] = `${dockerVol}:rw`
       }
@@ -235,12 +236,13 @@ const DockerRunner = {
     }
     // set the path based on the image year
     const match = image.match(/:([0-9]+)\.[0-9]+/)
-    const year = match ? match[1] : '2014'
+    // the rolling build does not follow our <year>.<version>.<patch> convention
+    const year = match ? match[1] : 'rolling'
+
     env.PATH = `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/texlive/${year}/bin/x86_64-linux/`
     const options = {
       Cmd: command,
       Image: image,
-      Volumes: dockerVolumes,
       WorkingDir: '/compile',
       NetworkDisabled: true,
       Memory: 1024 * 1024 * 1024 * 1024, // 1 Gb
@@ -258,7 +260,7 @@ const DockerRunner = {
             Hard: timeoutInSeconds + 10,
           },
         ],
-        CapDrop: 'ALL',
+        CapDrop: ['ALL'],
         SecurityOpt: ['no-new-privileges'],
       },
     }
@@ -309,50 +311,17 @@ const DockerRunner = {
     LockManager.runWithLock(
       options.name,
       releaseLock =>
-        // Check that volumes exist before starting the container.
-        // When a container is started with volume pointing to a
-        // non-existent directory then docker creates the directory but
-        // with root ownership.
-        DockerRunner._checkVolumes(options, volumes, err => {
-          if (err != null) {
-            return releaseLock(err)
-          }
-          DockerRunner._startContainer(
-            options,
-            volumes,
-            attachStreamHandler,
-            releaseLock
-          )
-        }),
-
+        DockerRunner._startContainer(
+          options,
+          volumes,
+          attachStreamHandler,
+          releaseLock
+        ),
       callback
     )
   },
 
   // Check that volumes exist and are directories
-  _checkVolumes(options, volumes, callback) {
-    if (usingSiblingContainers()) {
-      // Server Pro, with sibling-containers active, skip checks
-      return callback(null)
-    }
-
-    const checkVolume = (path, cb) =>
-      fs.stat(path, (err, stats) => {
-        if (err != null) {
-          return cb(err)
-        }
-        if (!stats.isDirectory()) {
-          return cb(new Error('not a directory'))
-        }
-        cb()
-      })
-    const jobs = []
-    for (const vol in volumes) {
-      jobs.push(cb => checkVolume(vol, cb))
-    }
-    async.series(jobs, callback)
-  },
-
   _startContainer(options, volumes, attachStreamHandler, callback) {
     callback = _.once(callback)
     const { name } = options
@@ -466,7 +435,7 @@ const DockerRunner = {
     })
   },
 
-  waitForContainer(containerId, timeout, _callback) {
+  waitForContainer(containerId, timeout, options, _callback) {
     const callback = _.once(_callback)
 
     const container = dockerode.getContainer(containerId)
@@ -482,6 +451,14 @@ const DockerRunner = {
 
     logger.debug({ containerId }, 'waiting for docker container')
     container.wait((error, res) => {
+      if (error?.statusCode === 404 && options.HostConfig.AutoRemove) {
+        logger.debug(
+          { containerId },
+          'auto-destroy container destroyed before starting to wait'
+        )
+        clearTimeout(timeoutId)
+        return callback(null, 0)
+      }
       if (error != null) {
         clearTimeout(timeoutId)
         logger.warn({ err: error, containerId }, 'error waiting for container')
@@ -616,6 +593,10 @@ const DockerRunner = {
       clearInterval(containerMonitorInterval)
       containerMonitorInterval = undefined
     }
+  },
+
+  canRunSyncTeXInOutputDir() {
+    return Boolean(Settings.path.sandboxedCompilesHostDirOutput)
   },
 }
 

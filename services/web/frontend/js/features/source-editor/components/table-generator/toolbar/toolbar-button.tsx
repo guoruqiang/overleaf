@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view'
 import classNames from 'classnames'
 import { memo, useCallback } from 'react'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '../../../../../shared/components/material-icon'
 import { useCodeMirrorViewContext } from '../../codemirror-context'
 import { emitTableGeneratorEvent } from '../analytics'
@@ -28,12 +28,12 @@ export const ToolbarButton = memo<{
   disabledLabel,
 }) {
   const view = useCodeMirrorViewContext()
-  const handleMouseDown = useCallback(event => {
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
   }, [])
 
   const handleClick = useCallback(
-    event => {
+    (event: React.MouseEvent) => {
       if (command) {
         emitTableGeneratorEvent(view, id)
         event.preventDefault()

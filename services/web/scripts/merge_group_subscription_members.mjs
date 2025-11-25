@@ -8,8 +8,9 @@
 
 import { db, ObjectId } from '../app/src/infrastructure/mongodb.js'
 
-import SubscriptionUpdater from '../app/src/Features/Subscription/SubscriptionUpdater.js'
+import SubscriptionUpdater from '../app/src/Features/Subscription/SubscriptionUpdater.mjs'
 import minimist from 'minimist'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 const argv = minimist(process.argv.slice(2), {
   string: ['target', 'source'],
   boolean: ['commit'],
@@ -93,7 +94,7 @@ async function main() {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   console.error('Done.')
   process.exit(0)
 } catch (error) {

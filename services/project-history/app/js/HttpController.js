@@ -16,6 +16,7 @@ import * as HistoryApiManager from './HistoryApiManager.js'
 import * as RetryManager from './RetryManager.js'
 import * as FlushManager from './FlushManager.js'
 import { pipeline } from 'node:stream'
+import { RequestFailedError } from '@overleaf/fetch-utils'
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
@@ -27,6 +28,9 @@ export function getProjectBlob(req, res, next) {
     blobHash,
     (err, stream) => {
       if (err != null) {
+        if (err instanceof RequestFailedError && err.response.status === 404) {
+          return res.status(404).end()
+        }
         return next(OError.tag(err))
       }
       res.setHeader('Cache-Control', `private, max-age=${ONE_DAY_IN_SECONDS}`)
@@ -234,22 +238,6 @@ export function getFileMetadataSnapshot(req, res, next) {
   )
 }
 
-export function getMostRecentChunk(req, res, next) {
-  const { project_id: projectId } = req.params
-  WebApiManager.getHistoryId(projectId, (error, historyId) => {
-    if (error) return next(OError.tag(error))
-
-    HistoryStoreManager.getMostRecentChunk(
-      projectId,
-      historyId,
-      (err, data) => {
-        if (err) return next(OError.tag(err))
-        res.json(data)
-      }
-    )
-  })
-}
-
 export function getLatestSnapshot(req, res, next) {
   const { project_id: projectId } = req.params
   WebApiManager.getHistoryId(projectId, (error, historyId) => {
@@ -263,25 +251,6 @@ export function getLatestSnapshot(req, res, next) {
         }
         const { snapshot, version } = details
         res.json({ snapshot: snapshot.toRaw(), version })
-      }
-    )
-  })
-}
-
-export function getChangesSince(req, res, next) {
-  const { project_id: projectId } = req.params
-  const { since } = req.query
-  WebApiManager.getHistoryId(projectId, (error, historyId) => {
-    if (error) return next(OError.tag(error))
-    SnapshotManager.getChangesSince(
-      projectId,
-      historyId,
-      since,
-      (error, changes) => {
-        if (error != null) {
-          return next(error)
-        }
-        res.json(changes.map(c => c.toRaw()))
       }
     )
   })
@@ -600,9 +569,7 @@ export function deleteProject(req, res, next) {
           if (err) {
             return next(err)
           }
-          // The third parameter to the following call is the error. Calling it
-          // with null will remove any failure record for this project.
-          ErrorRecorder.record(projectId, 0, null, err => {
+          ErrorRecorder.clearError(projectId, err => {
             if (err) {
               return next(err)
             }

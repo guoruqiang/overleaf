@@ -1,40 +1,69 @@
-import { FC, memo, useRef } from 'react'
+import { FC, memo, useEffect, useRef } from 'react'
 import useDropdown from '../../../../shared/hooks/use-dropdown'
-import OLListGroup from '@/features/ui/components/ol/ol-list-group'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLOverlay from '@/features/ui/components/ol/ol-overlay'
-import OLPopover from '@/features/ui/components/ol/ol-popover'
+import OLListGroup from '@/shared/components/ol/ol-list-group'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLOverlay from '@/shared/components/ol/ol-overlay'
+import OLPopover from '@/shared/components/ol/ol-popover'
 import { EditorView } from '@codemirror/view'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
 import { useCodeMirrorViewContext } from '../codemirror-context'
 
-export const ToolbarButtonMenu: FC<{
-  id: string
-  label: string
-  icon: React.ReactNode
-  altCommand?: (view: EditorView) => void
-}> = memo(function ButtonMenu({ icon, id, label, altCommand, children }) {
+export const ToolbarButtonMenu: FC<
+  React.PropsWithChildren<{
+    id: string
+    label: string
+    icon: React.ReactNode
+    disabled?: boolean
+    disablePopover?: boolean
+    altCommand?: (view: EditorView) => void
+    onToggle?: (isOpen: boolean) => void
+  }>
+> = memo(function ButtonMenu({
+  icon,
+  id,
+  label,
+  altCommand,
+  onToggle,
+  disabled,
+  disablePopover,
+  children,
+}) {
   const target = useRef<any>(null)
-  const { open, onToggle, ref } = useDropdown()
+  const { open, onToggle: handleToggle, ref } = useDropdown()
   const view = useCodeMirrorViewContext()
+
+  useEffect(() => {
+    if (disablePopover && open) {
+      handleToggle(false)
+    }
+  }, [open, disablePopover, handleToggle])
+
+  useEffect(() => {
+    onToggle?.(open)
+  }, [open, onToggle])
 
   const button = (
     <button
       type="button"
-      className="ol-cm-toolbar-button btn"
+      className="ol-cm-toolbar-button"
       aria-label={label}
+      aria-disabled={disabled}
       onMouseDown={event => {
         event.preventDefault()
         event.stopPropagation()
       }}
       onClick={event => {
+        if (disabled) {
+          event.preventDefault()
+          return
+        }
         if (event.altKey && altCommand && open === false) {
           emitToolbarEvent(view, id)
           event.preventDefault()
           altCommand(view)
           view.focus()
         } else {
-          onToggle(!open)
+          handleToggle(!open)
         }
       }}
       ref={target}
@@ -45,14 +74,14 @@ export const ToolbarButtonMenu: FC<{
 
   const overlay = (
     <OLOverlay
-      show={open}
+      show={open && !disablePopover}
       target={target.current}
       placement="bottom"
       container={view.dom}
       containerPadding={0}
       transition
       rootClose
-      onHide={() => onToggle(false)}
+      onHide={() => handleToggle(false)}
     >
       <OLPopover
         id={`${id}-menu`}
@@ -62,7 +91,7 @@ export const ToolbarButtonMenu: FC<{
         <OLListGroup
           role="menu"
           onClick={() => {
-            onToggle(false)
+            handleToggle(false)
           }}
         >
           {children}

@@ -10,11 +10,12 @@ import {
 } from 'react'
 import useScopeEventEmitter from '@/shared/hooks/use-scope-event-emitter'
 import useEventListener from '@/shared/hooks/use-event-listener'
-import * as eventTracking from '@/infrastructure/event-tracking'
-import useScopeValue from '@/shared/hooks/use-scope-value'
-import isValidTeXFile from '@/main/is-valid-tex-file'
+import { isValidTeXFile } from '@/main/is-valid-tex-file'
 import localStorage from '@/infrastructure/local-storage'
 import { useProjectContext } from '@/shared/context/project-context'
+import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
+import { useFileTreeOpenContext } from './file-tree-open-context'
+import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
 
 export type PartialFlatOutline = {
   level: number
@@ -38,11 +39,13 @@ const OutlineContext = createContext<
       canShowOutline: boolean
       outlineExpanded: boolean
       toggleOutlineExpanded: () => void
+      expandOutline: () => void
+      collapseOutline: () => void
     }
   | undefined
 >(undefined)
 
-export const OutlineProvider: FC = ({ children }) => {
+export const OutlineProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const [flatOutline, setFlatOutline] = useState<FlatOutlineState>(undefined)
   const [currentlyHighlightedLine, setCurrentlyHighlightedLine] =
     useState<number>(-1)
@@ -50,12 +53,13 @@ export const OutlineProvider: FC = ({ children }) => {
   const [ignoreNextCursorUpdate, setIgnoreNextCursorUpdate] =
     useState<boolean>(false)
   const [ignoreNextScroll, setIgnoreNextScroll] = useState<boolean>(false)
+  const { sendEvent } = useEditorAnalytics()
 
   const goToLineEmitter = useScopeEventEmitter('editor:gotoLine', true)
 
   useEventListener(
     'file-view:file-opened',
-    useCallback(_ => {
+    useCallback(() => {
       setBinaryFileOpened(true)
     }, [])
   )
@@ -63,7 +67,7 @@ export const OutlineProvider: FC = ({ children }) => {
   useEventListener(
     'scroll:editor:update',
     useCallback(
-      evt => {
+      (evt: CustomEvent) => {
         if (ignoreNextScroll) {
           setIgnoreNextScroll(false)
           return
@@ -77,7 +81,7 @@ export const OutlineProvider: FC = ({ children }) => {
   useEventListener(
     'cursor:editor:update',
     useCallback(
-      evt => {
+      (evt: CustomEvent) => {
         if (ignoreNextCursorUpdate) {
           setIgnoreNextCursorUpdate(false)
           return
@@ -90,7 +94,7 @@ export const OutlineProvider: FC = ({ children }) => {
 
   useEventListener(
     'doc:after-opened',
-    useCallback(evt => {
+    useCallback((evt: CustomEvent) => {
       if (evt.detail.isNewDoc) {
         setIgnoreNextCursorUpdate(true)
       }
@@ -102,10 +106,14 @@ export const OutlineProvider: FC = ({ children }) => {
   const jumpToLine = useCallback(
     (lineNumber: number, syncToPdf: boolean) => {
       setIgnoreNextScroll(true)
-      goToLineEmitter(lineNumber, 0, syncToPdf)
-      eventTracking.sendMB('outline-jump-to-line')
+      goToLineEmitter({
+        gotoLine: lineNumber,
+        gotoColumn: 0,
+        syncToPdf,
+      })
+      sendEvent('outline-jump-to-line')
     },
-    [goToLineEmitter]
+    [goToLineEmitter, sendEvent]
   )
 
   const highlightedLine = useMemo(
@@ -114,30 +122,47 @@ export const OutlineProvider: FC = ({ children }) => {
     [flatOutline, currentlyHighlightedLine]
   )
 
-  const [docName] = useScopeValue<string | null>('editor.open_doc_name')
+  const { openDocName } = useEditorOpenDocContext()
   const isTexFile = useMemo(
-    () => (docName ? isValidTeXFile(docName) : false),
-    [docName]
+    () => (openDocName ? isValidTeXFile(openDocName) : false),
+    [openDocName]
   )
 
-  const { _id: projectId } = useProjectContext()
+  const { selectedEntityCount } = useFileTreeOpenContext()
+  const hasSingleEntityOpen = selectedEntityCount === 1
+
+  const { projectId } = useProjectContext()
   const storageKey = `file_outline.expanded.${projectId}`
 
   const [outlineExpanded, setOutlineExpanded] = useState(
     () => localStorage.getItem(storageKey) !== false
   )
 
-  const canShowOutline = isTexFile && !binaryFileOpened
+  const canShowOutline = hasSingleEntityOpen && isTexFile && !binaryFileOpened
+
+  const expandOutline = useCallback(() => {
+    if (canShowOutline) {
+      localStorage.setItem(storageKey, true)
+      sendEvent('outline-expand')
+      setOutlineExpanded(true)
+    }
+  }, [canShowOutline, storageKey, sendEvent])
+
+  const collapseOutline = useCallback(() => {
+    if (canShowOutline) {
+      localStorage.setItem(storageKey, false)
+      sendEvent('outline-collapse')
+      setOutlineExpanded(false)
+    }
+  }, [canShowOutline, storageKey, sendEvent])
 
   const toggleOutlineExpanded = useCallback(() => {
-    if (canShowOutline) {
-      localStorage.setItem(storageKey, !outlineExpanded)
-      eventTracking.sendMB(
-        outlineExpanded ? 'outline-collapse' : 'outline-expand'
-      )
-      setOutlineExpanded(!outlineExpanded)
+    if (outlineExpanded) {
+      collapseOutline()
+    } else {
+      expandOutline()
     }
-  }, [canShowOutline, outlineExpanded, storageKey])
+  }, [collapseOutline, expandOutline, outlineExpanded])
 
   const value = useMemo(
     () => ({
@@ -148,6 +173,8 @@ export const OutlineProvider: FC = ({ children }) => {
       canShowOutline,
       outlineExpanded,
       toggleOutlineExpanded,
+      expandOutline,
+      collapseOutline,
     }),
     [
       flatOutline,
@@ -156,6 +183,8 @@ export const OutlineProvider: FC = ({ children }) => {
       canShowOutline,
       outlineExpanded,
       toggleOutlineExpanded,
+      expandOutline,
+      collapseOutline,
     ]
   )
 

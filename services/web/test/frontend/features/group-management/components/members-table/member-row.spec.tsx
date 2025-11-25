@@ -1,4 +1,3 @@
-import '../../../../helpers/bootstrap-3'
 import sinon from 'sinon'
 import MemberRow from '@/features/group-management/components/members-table/member-row'
 import { GroupMembersProvider } from '@/features/group-management/context/group-members-context'
@@ -31,18 +30,20 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('renders the row', function () {
-        cy.get('tr').should('exist')
+        cy.get('tr')
         // Checkbox
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
         // Email
         cy.get('tr').contains(user.email)
         // Name
@@ -83,9 +84,11 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
@@ -122,16 +125,20 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should render a "Group admin" symbol', function () {
-        cy.get('[aria-label="Group admin"].fa-user-circle-o').should('exist')
+        cy.findByTestId('group-admin-symbol').within(() => {
+          cy.findByText(/group admin/i)
+        })
       })
     })
 
@@ -158,20 +165,22 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should select and unselect the user', function () {
-        cy.get('.select-item').should('not.be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
       })
     })
   })
@@ -206,9 +215,11 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
@@ -217,7 +228,7 @@ describe('MemberRow', function () {
       it('renders the row', function () {
         cy.get('tr').should('exist')
         // Checkbox
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
         // Email
         cy.get('tr').contains(user.email)
         // Name
@@ -257,9 +268,11 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
@@ -296,16 +309,20 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should render a "Group admin" symbol', function () {
-        cy.get('[aria-label="Group admin"].fa-user-circle-o').should('exist')
+        cy.findByTestId('group-admin-symbol').within(() => {
+          cy.findByText(/group admin/i)
+        })
       })
     })
 
@@ -332,20 +349,22 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should select and unselect the user', function () {
-        cy.get('.select-item').should('not.be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
       })
     })
   })
@@ -380,18 +399,19 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('renders the row', function () {
-        cy.get('tr').should('exist')
         // Checkbox
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
         // Email
         cy.get('tr').contains(user.email)
         // Name
@@ -433,9 +453,11 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
@@ -472,16 +494,20 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should render a "Group admin" symbol', function () {
-        cy.get('[aria-label="Group admin"].fa-user-circle-o').should('exist')
+        cy.findByTestId('group-admin-symbol').within(() => {
+          cy.findByText(/group admin/i)
+        })
       })
     })
 
@@ -508,20 +534,22 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should select and unselect the user', function () {
-        cy.get('.select-item').should('not.be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
       })
     })
   })
@@ -557,18 +585,19 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('renders the row', function () {
-        cy.get('tr').should('exist')
         // Checkbox
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
         // Email
         cy.get('tr').contains(user.email)
         // Name
@@ -610,9 +639,11 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
@@ -649,16 +680,20 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should render a "Group admin" symbol', function () {
-        cy.get('[aria-label="Group admin"].fa-user-circle-o').should('exist')
+        cy.findByTestId('group-admin-symbol').within(() => {
+          cy.findByText(/group admin/i)
+        })
       })
     })
 
@@ -685,20 +720,22 @@ describe('MemberRow', function () {
             <MemberRow
               user={user}
               openOffboardingModalForUser={sinon.stub()}
+              openRemoveModalForUser={sinon.stub()}
               openUnlinkUserModal={sinon.stub()}
               groupId={subscriptionId}
               setGroupUserAlert={sinon.stub()}
+              hasWriteAccess
             />
           </GroupMembersProvider>
         )
       })
 
       it('should select and unselect the user', function () {
-        cy.get('.select-item').should('not.be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('be.checked')
-        cy.get('.select-item').click()
-        cy.get('.select-item').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('be.checked')
+        cy.findByTestId('select-single-checkbox').click()
+        cy.findByTestId('select-single-checkbox').should('not.be.checked')
       })
     })
   })

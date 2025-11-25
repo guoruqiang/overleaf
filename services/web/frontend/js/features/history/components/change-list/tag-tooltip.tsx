@@ -1,12 +1,13 @@
 import { forwardRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+} from '@/shared/components/ol/ol-modal'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import ModalError from './modal-error'
 import useAbortController from '../../../../shared/hooks/use-abort-controller'
 import useAsync from '../../../../shared/hooks/use-async'
@@ -16,11 +17,11 @@ import { deleteLabel } from '../../services/api'
 import { isPseudoLabel } from '../../utils/label'
 import { LoadedLabel } from '../../services/types/label'
 import { debugConsole } from '@/utils/debugging'
-import { formatTimeBasedOnYear } from '@/features/utils/format-date'
+import { FormatTimeBasedOnYear } from '@/shared/components/format-time-based-on-year'
 import { useEditorContext } from '@/shared/context/editor-context'
-import OLTag from '@/features/ui/components/ol/ol-tag'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLTagIcon from '@/features/ui/components/ol/icons/ol-tag-icon'
+import OLTag from '@/shared/components/ol/ol-tag'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLTagIcon from '@/shared/components/ol/ol-tag-icon'
 
 type TagProps = {
   label: LoadedLabel
@@ -87,6 +88,7 @@ const ChangeTag = forwardRef<HTMLElement, TagProps>(
           className="history-version-badge"
           data-testid="history-version-badge"
           {...props}
+          translate={isPseudoCurrentStateLabel ? 'yes' : 'no'}
         >
           {isPseudoCurrentStateLabel
             ? t('history_label_project_current_state')
@@ -121,12 +123,8 @@ const ChangeTag = forwardRef<HTMLElement, TagProps>(
                 variant="danger"
                 disabled={isLoading}
                 isLoading={isLoading}
+                loadingLabel={t('deleting')}
                 onClick={localDeleteHandler}
-                bs3Props={{
-                  loading: isLoading
-                    ? t('history_deleting_label')
-                    : t('history_delete_label'),
-                }}
               >
                 {t('history_delete_label')}
               </OLButton>
@@ -152,27 +150,37 @@ function TagTooltip({ label, currentUserId, showTooltip }: LabelBadgesProps) {
 
   const isPseudoCurrentStateLabel = isPseudoLabel(label)
   const currentLabelData = allLabels?.find(({ id }) => id === label.id)
-  const labelOwnerName =
-    currentLabelData && !isPseudoLabel(currentLabelData)
-      ? currentLabelData.user_display_name
-      : t('anonymous')
+  const isAnonymous = !currentLabelData || isPseudoLabel(currentLabelData)
+  const labelOwnerName = isAnonymous
+    ? t('anonymous')
+    : currentLabelData.user_display_name
+  const labelOwnerNameComponent = isAnonymous ? (
+    labelOwnerName
+  ) : (
+    <span translate="no">{labelOwnerName}</span>
+  )
 
   return !isPseudoCurrentStateLabel ? (
     <OLTooltip
       description={
         <div className="history-version-label-tooltip">
           <div className="history-version-label-tooltip-row">
-            <b className="history-version-label-tooltip-row-comment">
+            <b
+              className="history-version-label-tooltip-row-comment"
+              translate="no"
+            >
               <OLTagIcon />
               &nbsp;
               {label.comment}
             </b>
           </div>
           <div className="history-version-label-tooltip-row">
-            {t('history_label_created_by')} {labelOwnerName}
+            {t('history_label_created_by')} {labelOwnerNameComponent}
           </div>
           <div className="history-version-label-tooltip-row">
-            <time>{formatTimeBasedOnYear(label.created_at)}</time>
+            <time>
+              <FormatTimeBasedOnYear date={label.created_at} />
+            </time>
           </div>
         </div>
       }

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLButton from '@/features/ui/components/ol/ol-button'
+} from '@/shared/components/ol/ol-modal'
+import OLButton from '@/shared/components/ol/ol-button'
 import { useTranslation } from 'react-i18next'
 import Uppy from '@uppy/core'
 import { Dashboard } from '@uppy/react'
@@ -94,7 +95,7 @@ function UploadProjectModal({ onHide, openProject }: UploadProjectModalProps) {
       id="upload-project-modal"
       backdrop="static"
     >
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle as="h3">{t('upload_zipped_project')}</OLModalTitle>
       </OLModalHeader>
       <OLModalBody>

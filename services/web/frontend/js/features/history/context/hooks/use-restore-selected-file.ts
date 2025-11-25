@@ -1,14 +1,14 @@
-import { useIdeContext } from '../../../../shared/context/ide-context'
 import { useLayoutContext } from '../../../../shared/context/layout-context'
 import { restoreFileToVersion } from '../../services/api'
 import { isFileRemoved } from '../../utils/file-diff'
 import { useHistoryContext } from '../history-context'
 import type { HistoryContextValue } from '../types/history-context-value'
-import { useErrorHandler } from 'react-error-boundary'
+import { useErrorBoundary } from 'react-error-boundary'
 import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { findInTree } from '@/features/file-tree/util/find-in-tree'
 import { useCallback, useEffect, useState } from 'react'
 import { RestoreFileResponse } from '../../services/types/restore-file'
+import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
 
 const RESTORE_FILE_TIMEOUT = 3000
 
@@ -22,9 +22,9 @@ type RestoreState =
 
 export function useRestoreSelectedFile() {
   const { projectId } = useHistoryContext()
-  const ide = useIdeContext()
-  const { setView } = useLayoutContext()
-  const handleError = useErrorHandler()
+  const { restoreView } = useLayoutContext()
+  const { openDocWithId, openFileWithId } = useEditorManagerContext()
+  const { showBoundary } = useErrorBoundary()
   const { fileTreeData } = useFileTreeData()
   const [state, setState] = useState<RestoreState>('idle')
   const [restoredFileMetadata, setRestoredFileMetadata] =
@@ -38,14 +38,12 @@ export function useRestoreSelectedFile() {
       if (result) {
         setState('complete')
         const { _id: id } = result.entity
-        setView('editor')
+        restoreView()
 
-        // Once Angular is gone, these can be replaced with calls to context
-        // methods
         if (restoredFileMetadata.type === 'doc') {
-          ide.editorManager.openDocId(id)
+          openDocWithId(id)
         } else {
-          ide.binaryFilesManager.openFileWithId(id)
+          openFileWithId(id)
         }
       }
     }
@@ -53,23 +51,23 @@ export function useRestoreSelectedFile() {
     state,
     fileTreeData,
     restoredFileMetadata,
-    ide.editorManager,
-    ide.binaryFilesManager,
-    setView,
+    openDocWithId,
+    openFileWithId,
+    restoreView,
   ])
 
   useEffect(() => {
     if (state === 'waitingForFileTree') {
       const timer = window.setTimeout(() => {
         setState('timedOut')
-        handleError(new Error('timed out'))
+        showBoundary(new Error('timed out'))
       }, RESTORE_FILE_TIMEOUT)
 
       return () => {
         window.clearTimeout(timer)
       }
     }
-  }, [handleError, state])
+  }, [showBoundary, state])
 
   const restoreSelectedFile = useCallback(
     (selection: HistoryContextValue['selection']) => {
@@ -93,13 +91,13 @@ export function useRestoreSelectedFile() {
             },
             error => {
               setState('error')
-              handleError(error)
+              showBoundary(error)
             }
           )
         }
       }
     },
-    [handleError, projectId]
+    [showBoundary, projectId]
   )
 
   return { restoreSelectedFile, isLoading }

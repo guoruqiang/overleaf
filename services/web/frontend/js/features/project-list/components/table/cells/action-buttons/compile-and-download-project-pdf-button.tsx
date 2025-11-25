@@ -1,22 +1,21 @@
 import { useTranslation } from 'react-i18next'
 import { memo, useCallback, useState } from 'react'
 import { Project } from '../../../../../../../../types/project/dashboard/api'
-import Icon from '../../../../../../shared/components/icon'
 import * as eventTracking from '../../../../../../infrastructure/event-tracking'
 import { useLocation } from '../../../../../../shared/hooks/use-location'
 import useAbortController from '../../../../../../shared/hooks/use-abort-controller'
 import { postJSON } from '../../../../../../infrastructure/fetch-json'
 import { isSmallDevice } from '../../../../../../infrastructure/event-tracking'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLModal, {
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLButton from '@/shared/components/ol/ol-button'
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
+} from '@/shared/components/ol/ol-modal'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
 
 type CompileAndDownloadProjectPDFButtonProps = {
   project: Project
@@ -122,7 +121,7 @@ function CompileErrorModal({
   return (
     <>
       <OLModal show onHide={handleClose}>
-        <OLModalHeader closeButton>
+        <OLModalHeader>
           <OLModalTitle>
             {project.name}: {t('pdf_unavailable_for_download')}
           </OLModalTitle>
@@ -159,13 +158,7 @@ const CompileAndDownloadProjectPDFButtonTooltip = memo(
                 loadingLabel={text}
                 isLoading={pendingCompile}
                 className="action-btn"
-                icon={bsVersion({ bs5: 'picture_as_pdf', bs3: 'file-pdf-o' })}
-                bs3Props={{
-                  fw: true,
-                  loading: pendingCompile ? (
-                    <Icon type="spinner" fw accessibilityLabel={text} spin />
-                  ) : null,
-                }}
+                icon="picture_as_pdf"
               />
             </span>
           </OLTooltip>

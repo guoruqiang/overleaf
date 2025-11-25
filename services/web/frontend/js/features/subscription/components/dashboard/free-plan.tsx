@@ -1,7 +1,10 @@
 import { useTranslation, Trans } from 'react-i18next'
+import WritefullManagedBundleAddOn from '@/features/subscription/components/dashboard/states/active/change-plan/modals/writefull-bundle-management-modal'
+import getMeta from '@/utils/meta'
 
 function FreePlan() {
   const { t } = useTranslation()
+  const hasAiAssistViaWritefull = getMeta('ol-hasAiAssistViaWritefull')
 
   return (
     <>
@@ -26,6 +29,12 @@ function FreePlan() {
       <a className="btn btn-primary me-1" href="/user/subscription/plans">
         {t('upgrade_now')}
       </a>
+      {hasAiAssistViaWritefull && (
+        <>
+          <h2 className="h3 fw-bold">{t('add_ons')}</h2>
+          <WritefullManagedBundleAddOn />
+        </>
+      )}
     </>
   )
 }

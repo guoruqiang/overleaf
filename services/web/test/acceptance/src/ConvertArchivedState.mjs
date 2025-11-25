@@ -1,7 +1,7 @@
 import { expect } from 'chai'
-import { exec } from 'child_process'
+import { exec } from 'node:child_process'
 import mongodb from 'mongodb-legacy'
-import UserHelper from './helpers/User.js'
+import UserHelper from './helpers/User.mjs'
 
 const User = UserHelper.promises
 
@@ -120,7 +120,7 @@ describe('ConvertArchivedState', function () {
 
   beforeEach(function (done) {
     exec(
-      'CONNECT_DELAY=1 node scripts/convert_archived_state.mjs FIRST,SECOND',
+      'cd ../../tools/migrations && east migrate --tag server-ce --force 20221111111111_ce_sp_convert_archived_state',
       error => {
         if (error) {
           return done(error)

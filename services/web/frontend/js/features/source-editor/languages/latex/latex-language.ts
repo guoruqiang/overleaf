@@ -40,17 +40,18 @@ const Styles = {
 
 const typeMap: Record<string, string[]> = {
   // commands that are section headings
-  PartCtrlSeq: ['$SectioningCommand'],
-  ChapterCtrlSeq: ['$SectioningCommand'],
-  SectionCtrlSeq: ['$SectioningCommand'],
-  SubSectionCtrlSeq: ['$SectioningCommand'],
-  SubSubSectionCtrlSeq: ['$SectioningCommand'],
-  ParagraphCtrlSeq: ['$SectioningCommand'],
-  SubParagraphCtrlSeq: ['$SectioningCommand'],
+  PartCtrlSeq: ['$SectioningCtrlSeq'],
+  ChapterCtrlSeq: ['$SectioningCtrlSeq'],
+  SectionCtrlSeq: ['$SectioningCtrlSeq'],
+  SubSectionCtrlSeq: ['$SectioningCtrlSeq'],
+  SubSubSectionCtrlSeq: ['$SectioningCtrlSeq'],
+  ParagraphCtrlSeq: ['$SectioningCtrlSeq'],
+  SubParagraphCtrlSeq: ['$SectioningCtrlSeq'],
   // commands that have a "command tooltip"
   HrefCommand: ['$CommandTooltipCommand'],
   Include: ['$CommandTooltipCommand'],
   Input: ['$CommandTooltipCommand'],
+  Subfile: ['$CommandTooltipCommand'],
   Ref: ['$CommandTooltipCommand'],
   UrlCommand: ['$CommandTooltipCommand'],
   // text formatting commands that can be toggled via the toolbar
@@ -90,7 +91,7 @@ export const LaTeXLanguage = LRLanguage.define({
         // enough? For some reason it doesn't work if there's a newline after
         // \section{a}, but works for \section{a}b
         $Environment: node => node.getChild('Content'),
-        $SectioningCommand: node => {
+        $Section: node => {
           const BACKWARDS = -1
           const lastChild = node.resolveInner(node.to, BACKWARDS)
           const content = node.getChild('Content')
@@ -163,17 +164,8 @@ export const LaTeXLanguage = LRLanguage.define({
           ) {
             types.push('$TextArgument')
           }
-        } else if (
-          type.name.endsWith('Environment') &&
-          !['NewEnvironment', 'RenewEnvironment'].includes(type.name)
-        ) {
-          types.push('$Environment')
         } else if (type.name.endsWith('Brace')) {
           types.push('$Brace')
-        } else if (
-          ['BracketMath', 'ParenMath', 'DollarMath'].includes(type.name)
-        ) {
-          types.push('$MathContainer')
         }
 
         if (type.name in typeMap) {

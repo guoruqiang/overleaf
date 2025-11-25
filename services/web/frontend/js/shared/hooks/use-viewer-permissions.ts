@@ -1,12 +1,8 @@
-import { useEditorContext } from '../context/editor-context'
-import getMeta from '@/utils/meta'
+import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 
 function useViewerPermissions() {
-  const { permissionsLevel } = useEditorContext()
-
-  const hasViewerPermissions =
-    getMeta('ol-linkSharingWarning') && permissionsLevel === 'readOnly'
-  return hasViewerPermissions
+  const { permissionsLevel } = useIdeReactContext()
+  return permissionsLevel === 'readOnly'
 }
 
 export default useViewerPermissions

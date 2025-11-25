@@ -1,22 +1,17 @@
 import { Trans, useTranslation } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../types/subscription/dashboard/subscription'
-import { ActiveSubscription } from './states/active/active'
-import { ActiveAiAddonSubscription } from './states/active/active-ai-addon'
+import { PaidSubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { PausedSubscription } from './states/active/paused'
+import { ActiveSubscription } from '@/features/subscription/components/dashboard/states/active/active'
 import { CanceledSubscription } from './states/canceled'
 import { ExpiredSubscription } from './states/expired'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
-import PersonalSubscriptionRecurlySyncEmail from './personal-subscription-recurly-sync-email'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import {
-  AI_STANDALONE_PLAN_CODE,
-  AI_STANDALONE_ANNUAL_PLAN_CODE,
-  AI_ADD_ON_CODE,
-} from '../../data/add-on-codes'
+import PersonalSubscriptionSyncEmail from './personal-subscription-sync-email'
+import OLNotification from '@/shared/components/ol/ol-notification'
 
 function PastDueSubscriptionAlert({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
   return (
@@ -26,7 +21,7 @@ function PastDueSubscriptionAlert({
         <>
           {t('account_has_past_due_invoice_change_plan_warning')}{' '}
           <a
-            href={subscription.recurly.accountManagementLink}
+            href={subscription.payment.accountManagementLink}
             target="_blank"
             rel="noreferrer noopener"
           >
@@ -41,30 +36,20 @@ function PastDueSubscriptionAlert({
 function PersonalSubscriptionStates({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
-  const state = subscription?.recurly.state
+  const state = subscription?.payment.state
 
-  const hasAiAddon = subscription?.addOns?.some(
-    addOn => addOn.addOnCode === AI_ADD_ON_CODE
-  )
-
-  const onAiStandalonePlan = [
-    AI_STANDALONE_PLAN_CODE,
-    AI_STANDALONE_ANNUAL_PLAN_CODE,
-  ].includes(subscription.planCode)
-
-  const planHasAi = onAiStandalonePlan || hasAiAddon
-
-  if (state === 'active' && planHasAi) {
-    return <ActiveAiAddonSubscription subscription={subscription} />
-  } else if (state === 'active') {
+  if (state === 'active') {
+    // This version handles subscriptions with and without addons
     return <ActiveSubscription subscription={subscription} />
   } else if (state === 'canceled') {
     return <CanceledSubscription subscription={subscription} />
   } else if (state === 'expired') {
     return <ExpiredSubscription subscription={subscription} />
+  } else if (state === 'paused') {
+    return <PausedSubscription subscription={subscription} />
   } else {
     return <>{t('problem_with_subscription_contact_us')}</>
   }
@@ -77,7 +62,7 @@ function PersonalSubscription() {
 
   if (!personalSubscription) return null
 
-  if (!('recurly' in personalSubscription)) {
+  if (!('payment' in personalSubscription)) {
     return (
       <p>
         <Trans
@@ -90,12 +75,11 @@ function PersonalSubscription() {
 
   return (
     <>
-      {personalSubscription.recurly.account.has_past_due_invoice._ ===
-        'true' && (
+      {personalSubscription.payment.hasPastDueInvoice && (
         <PastDueSubscriptionAlert subscription={personalSubscription} />
       )}
       <PersonalSubscriptionStates
-        subscription={personalSubscription as RecurlySubscription}
+        subscription={personalSubscription as PaidSubscription}
       />
       {recurlyLoadError && (
         <OLNotification
@@ -104,7 +88,7 @@ function PersonalSubscription() {
         />
       )}
       <hr />
-      <PersonalSubscriptionRecurlySyncEmail />
+      <PersonalSubscriptionSyncEmail />
     </>
   )
 }

@@ -34,7 +34,7 @@ Metrics.leaked_sockets.monitor(logger)
 // We may have fairly large JSON bodies when receiving large Changes. Clients
 // may have to handle 413 status codes and try creating files instead of sending
 // text content in changes.
-app.use(bodyParser.json({ limit: '6MB' }))
+app.use(bodyParser.json({ limit: '12MB' }))
 app.use(
   bodyParser.urlencoded({
     extended: false,
@@ -84,26 +84,29 @@ function setupErrorHandling() {
 
   // Handle Swagger errors.
   app.use(function (err, req, res, next) {
+    const projectId = req.swagger?.params?.project_id?.value
     if (res.headersSent) {
       return next(err)
     }
 
     if (err.code === 'SCHEMA_VALIDATION_FAILED') {
-      logger.error(err)
+      logger.error({ err, projectId }, err.message)
       return res.status(HTTPStatus.UNPROCESSABLE_ENTITY).json(err.results)
     }
     if (err.code === 'INVALID_TYPE' || err.code === 'PATTERN') {
-      logger.error(err)
+      logger.error({ err, projectId }, err.message)
       return res.status(HTTPStatus.UNPROCESSABLE_ENTITY).json({
         message: 'invalid type: ' + err.paramName,
       })
     }
     if (err.code === 'ENUM_MISMATCH') {
+      logger.warn({ err, projectId }, err.message)
       return res.status(HTTPStatus.UNPROCESSABLE_ENTITY).json({
         message: 'invalid enum value: ' + err.paramName,
       })
     }
     if (err.code === 'REQUIRED') {
+      logger.warn({ err, projectId }, err.message)
       return res.status(HTTPStatus.UNPROCESSABLE_ENTITY).json({
         message: err.message,
       })
@@ -112,7 +115,8 @@ function setupErrorHandling() {
   })
 
   app.use(function (err, req, res, next) {
-    logger.error(err)
+    const projectId = req.swagger?.params?.project_id?.value
+    logger.error({ err, projectId }, err.message)
 
     if (res.headersSent) {
       return next(err)

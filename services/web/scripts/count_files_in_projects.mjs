@@ -1,6 +1,6 @@
 import readline from 'node:readline'
-import ProjectEntityHandler from '../app/src/Features/Project/ProjectEntityHandler.js'
-import ProjectGetter from '../app/src/Features/Project/ProjectGetter.js'
+import ProjectEntityHandler from '../app/src/Features/Project/ProjectEntityHandler.mjs'
+import ProjectGetter from '../app/src/Features/Project/ProjectGetter.mjs'
 import Errors from '../app/src/Features/Errors/Errors.js'
 
 async function countFiles() {
@@ -19,7 +19,6 @@ async function countFiles() {
       console.error(
         projectId,
         files.length,
-        (project.deletedFiles && project.deletedFiles.length) || 0,
         docs.length,
         (project.deletedDocs && project.deletedDocs.length) || 0
       )

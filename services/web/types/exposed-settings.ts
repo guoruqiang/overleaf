@@ -25,6 +25,7 @@ export type ExposedSettings = {
   isOverleaf: boolean
   maxEntitiesPerProject: number
   projectUploadTimeout: number
+  propensityId?: string
   maxUploadSize: number
   recaptchaDisabled: {
     invite: boolean
@@ -47,7 +48,6 @@ export type ExposedSettings = {
   fileIgnorePattern: string
   templateLinks?: TemplateLink[]
   labsEnabled: boolean
-  groupSSOEnabled?: boolean
   wikiEnabled?: boolean
   templatesEnabled?: boolean
 }

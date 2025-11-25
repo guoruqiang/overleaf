@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   useCodeMirrorStateContext,
@@ -14,15 +14,13 @@ import {
   ShortTextArgument,
   UrlArgument,
 } from '../../lezer-latex/latex.terms.mjs'
-import Icon from '../../../../shared/components/icon'
 import { EditorState } from '@codemirror/state'
 import { openURL } from '@/features/source-editor/utils/url'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
-import OLFormControl from '@/features/ui/components/ol/ol-form-control'
-import OLForm from '@/features/ui/components/ol/ol-form'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLForm from '@/shared/components/ol/ol-form'
+import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
 
 export const HrefTooltipContent: FC = () => {
@@ -73,7 +71,7 @@ export const HrefTooltipContent: FC = () => {
   }, [view])
 
   const handleSubmit = useCallback(
-    event => {
+    (event: FormEvent) => {
       event.preventDefault()
       view.dispatch(closeCommandTooltip())
       view.focus()
@@ -92,7 +90,7 @@ export const HrefTooltipContent: FC = () => {
             htmlSize={50}
             placeholder="https://…"
             value={url}
-            ref={element => {
+            ref={(element: HTMLInputElement) => {
               inputRef.current = element
             }}
             autoComplete="off"
@@ -118,10 +116,7 @@ export const HrefTooltipContent: FC = () => {
           openURL(url)
         }}
       >
-        <BootstrapVersionSwitcher
-          bs3={<Icon type="external-link" fw />}
-          bs5={<MaterialIcon type="open_in_new" />}
-        />
+        <MaterialIcon type="open_in_new" />
 
         {t('open_link')}
       </OLButton>
@@ -139,10 +134,7 @@ export const HrefTooltipContent: FC = () => {
             }
           }}
         >
-          <BootstrapVersionSwitcher
-            bs3={<Icon type="chain-broken" fw />}
-            bs5={<MaterialIcon type="link_off" />}
-          />
+          <MaterialIcon type="link_off" />
 
           {t('remove_link')}
         </OLButton>

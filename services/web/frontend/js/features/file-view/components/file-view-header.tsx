@@ -1,7 +1,6 @@
 import { useState, type ElementType } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import Icon from '../../../shared/components/icon'
 import { formatTime, relativeDate } from '../../utils/format-date'
 import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -12,10 +11,8 @@ import { LinkedFileIcon } from './file-view-icons'
 import { BinaryFile, hasProvider, LinkedFile } from '../types/binary-file'
 import FileViewRefreshButton from './file-view-refresh-button'
 import FileViewRefreshError from './file-view-refresh-error'
-import { useSnapshotContext } from '@/features/ide-react/context/snapshot-context'
 import MaterialIcon from '@/shared/components/material-icon'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 const tprFileViewInfo = importOverleafModules('tprFileViewInfo') as {
   import: { TPRFileViewInfo: ElementType }
@@ -51,9 +48,8 @@ type FileViewHeaderProps = {
 }
 
 export default function FileViewHeader({ file }: FileViewHeaderProps) {
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
   const { fileTreeReadOnly } = useFileTreeData()
-  const { fileTreeFromHistory } = useSnapshotContext()
   const { t } = useTranslation()
 
   const [refreshError, setRefreshError] = useState<Nullable<string>>(null)
@@ -86,16 +82,9 @@ export default function FileViewHeader({ file }: FileViewHeaderProps) {
         <OLButton
           variant="secondary"
           download={file.name}
-          href={
-            fileTreeFromHistory
-              ? `/project/${projectId}/blob/${file.hash}`
-              : `/project/${projectId}/file/${file.id}`
-          }
+          href={`/project/${projectId}/blob/${file.hash}`}
         >
-          <BootstrapVersionSwitcher
-            bs3={<Icon type="download" fw />}
-            bs5={<MaterialIcon type="download" className="align-middle" />}
-          />{' '}
+          <MaterialIcon type="download" className="align-middle" />{' '}
           <span>{t('download')}</span>
         </OLButton>
       </div>
@@ -108,6 +97,18 @@ export default function FileViewHeader({ file }: FileViewHeaderProps) {
       {refreshError && (
         <FileViewRefreshError file={file} refreshError={refreshError} />
       )}
+
+      {/* Workaround for Safari issue: https://github.com/overleaf/internal/issues/21363
+       * The editor behind a file view receives key events and updates the file even if Codemirror view is not focused.
+       * Changing the focus to a hidden textarea prevents this
+       */}
+      <textarea
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        aria-label="Invisible element to manage focus and prevent unintended behavior"
+        tabIndex={-1}
+        style={{ position: 'absolute', left: '-9999px' }}
+      />
     </>
   )
 }

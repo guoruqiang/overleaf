@@ -1,9 +1,9 @@
 import archiver from 'archiver'
 import async from 'async'
 import logger from '@overleaf/logger'
-import ProjectEntityHandler from '../Project/ProjectEntityHandler.js'
-import ProjectGetter from '../Project/ProjectGetter.js'
-import FileStoreHandler from '../FileStore/FileStoreHandler.js'
+import ProjectEntityHandler from '../Project/ProjectEntityHandler.mjs'
+import ProjectGetter from '../Project/ProjectGetter.mjs'
+import HistoryManager from '../History/HistoryManager.mjs'
 let ProjectZipStreamManager
 
 export default ProjectZipStreamManager = {
@@ -108,16 +108,29 @@ export default ProjectZipStreamManager = {
     })
   },
 
+  getFileStream: (projectId, file, callback) => {
+    HistoryManager.requestBlobWithProjectId(
+      projectId,
+      file.hash,
+      (error, result) => {
+        if (error) {
+          return callback(error)
+        }
+        const { stream } = result
+        callback(null, stream)
+      }
+    )
+  },
+
   addAllFilesToArchive(projectId, archive, callback) {
     ProjectEntityHandler.getAllFiles(projectId, (error, files) => {
       if (error) {
         return callback(error)
       }
       const jobs = Object.entries(files).map(([path, file]) => cb => {
-        FileStoreHandler.getFileStream(
+        ProjectZipStreamManager.getFileStream(
           projectId,
-          file._id,
-          {},
+          file,
           (error, stream) => {
             if (error) {
               logger.warn(

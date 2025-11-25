@@ -23,6 +23,11 @@
 
 [Overleaf](https://www.overleaf.com) is an open-source online real-time collaborative LaTeX editor. We run a hosted version at [www.overleaf.com](https://www.overleaf.com), but you can also run your own local version, and contribute to the development of Overleaf.
 
+> [!CAUTION]
+> Overleaf Community Edition is intended for use in environments where **all** users are trusted. Community Edition is **not** appropriate for scenarios where isolation of users is required due to Sandbox Compiles not being available. When not using Sandboxed Compiles, users have full read and write access to the `sharelatex` container resources (filesystem, network, environment variables) when running LaTeX compiles.
+
+For more information on Sandbox Compiles check out our [documentation](https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles).
+
 ## Enterprise
 
 If you want help installing and maintaining Overleaf in your lab or workplace, we offer an officially supported version called [Overleaf Server Pro](https://www.overleaf.com/for/enterprises). It also includes more features for security (SSO with LDAP or SAML), administration and collaboration (e.g. tracked changes). [Find out more!](https://www.overleaf.com/for/enterprises)
@@ -45,8 +50,8 @@ This repo contains two dockerfiles, [`Dockerfile-base`](server-ce/Dockerfile-bas
 `sharelatex/sharelatex-base` image, and [`Dockerfile`](server-ce/Dockerfile) which builds the
 `sharelatex/sharelatex` (or "community") image.
 
-The Base image generally contains the basic dependencies like `wget` and
-`aspell`, plus `texlive`. We split this out because it's a pretty heavy set of
+The Base image generally contains the basic dependencies like `wget`, plus `texlive`.
+We split this out because it's a pretty heavy set of
 dependencies, and it's nice to not have to rebuild all of that every time.
 
 The `sharelatex/sharelatex` image extends the base image and adds the actual Overleaf code
@@ -73,4 +78,4 @@ Please see the [CONTRIBUTING](CONTRIBUTING.md) file for information on contribut
 
 The code in this repository is released under the GNU AFFERO GENERAL PUBLIC LICENSE, version 3. A copy can be found in the [`LICENSE`](LICENSE) file.
 
-Copyright (c) Overleaf, 2014-2024.
+Copyright (c) Overleaf, 2014-2025.

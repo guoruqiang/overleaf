@@ -1,4 +1,9 @@
 /* eslint-disable camelcase */
+const http = require('node:http')
+const https = require('node:https')
+
+http.globalAgent.keepAlive = false
+https.globalAgent.keepAlive = false
 
 const settings = {
   redis: {
@@ -32,6 +37,9 @@ const settings = {
         },
         connectedUser({ project_id, client_id }) {
           return `connected_user:{${project_id}}:${client_id}`
+        },
+        projectNotEmptySince({ projectId }) {
+          return `projectNotEmptySince:{${projectId}}`
         },
       },
       maxRetriesPerRequest: parseInt(
@@ -157,18 +165,15 @@ const settings = {
   // the deployment colour for this app.
   deploymentFile: process.env.DEPLOYMENT_FILE,
 
-  sentry: {
-    dsn: process.env.SENTRY_DSN,
-  },
-
   errors: {
     catchUncaughtErrors: true,
     shutdownOnUncaughtError: true,
   },
 
-  behindProxy: process.env.BEHIND_PROXY === 'true',
-  trustedProxyIps: process.env.TRUSTED_PROXY_IPS,
+  behindProxy: true,
+  trustedProxyIps: process.env.TRUSTED_PROXY_IPS || 'loopback',
   keepAliveTimeoutMs: parseInt(process.env.KEEPALIVE_TIMEOUT_MS ?? '5000', 10),
+  allowedCorsOrigins: process.env.REAL_TIME_ALLOWED_CORS_ORIGINS,
 }
 
 // console.log settings.redis

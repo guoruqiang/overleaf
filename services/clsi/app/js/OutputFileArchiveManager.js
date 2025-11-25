@@ -7,7 +7,7 @@ const { NotFoundError } = require('./Errors')
 const logger = require('@overleaf/logger')
 
 // NOTE: Updating this list requires a corresponding change in
-// * services/web/frontend/js/features/pdf-preview/util/file-list.js
+// * services/web/frontend/js/features/pdf-preview/util/file-list.ts
 const ignoreFiles = ['output.fls', 'output.fdb_latexmk']
 
 function getContentDir(projectId, userId) {
@@ -93,8 +93,11 @@ module.exports = {
       )
 
       return outputFiles.filter(
-        // Ignore the pdf and also ignore the files ignored by the frontend.
-        ({ path }) => path !== 'output.pdf' && !ignoreFiles.includes(path)
+        // Ignore the pdf, clsi-cache tar-ball and also ignore the files ignored by the frontend.
+        ({ path }) =>
+          path !== 'output.pdf' &&
+          path !== 'output.tar.gz' &&
+          !ignoreFiles.includes(path)
       )
     } catch (error) {
       if (

@@ -1,34 +1,27 @@
-const { Joi: CelebrateJoi, celebrate, errors } = require('celebrate')
-const { ObjectId } = require('mongodb-legacy')
+// @ts-check
 
-const objectIdValidator = {
-  type: 'objectId',
-  base: CelebrateJoi.any(),
-  messages: {
-    'objectId.invalid': 'needs to be a valid ObjectId',
-  },
-  coerce(value) {
-    return {
-      value: typeof value === typeof ObjectId ? value : new ObjectId(value),
+const { NotFoundError } = require('../Features/Errors/Errors')
+const {
+  validateReq,
+  z,
+  zz,
+  ParamsError,
+} = require('@overleaf/validation-tools')
+
+const validateReqWeb = (req, schema) => {
+  try {
+    return validateReq(req, schema)
+  } catch (err) {
+    if (err instanceof ParamsError) {
+      // convert into a NotFoundError that web understands
+      throw new NotFoundError('Not found').withCause(err)
     }
-  },
-  prepare(value, helpers) {
-    if (!ObjectId.isValid(value)) {
-      return {
-        errors: helpers.error('objectId.invalid'),
-      }
-    }
-  },
+    throw err
+  }
 }
 
-const Joi = CelebrateJoi.extend(objectIdValidator)
-const errorMiddleware = errors()
-
-module.exports = { Joi, validate, errorMiddleware }
-
-/**
- * Validation middleware
- */
-function validate(schema) {
-  return celebrate(schema, { allowUnknown: true })
+module.exports = {
+  validateReq: validateReqWeb,
+  z,
+  zz,
 }

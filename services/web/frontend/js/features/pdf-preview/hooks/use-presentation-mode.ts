@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PDFJSWrapper from '../util/pdf-js-wrapper'
-import { sendMB } from '@/infrastructure/event-tracking'
 import { debugConsole } from '@/utils/debugging'
+import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
 
 type StoredPDFState = {
   scrollMode?: number
@@ -17,6 +17,7 @@ export default function usePresentationMode(
   setScale: (scale: string) => void
 ): () => void {
   const storedState = useRef<StoredPDFState>({})
+  const { sendEvent } = useEditorAnalytics()
 
   const [presentationMode, setPresentationMode] = useState(false)
 
@@ -33,8 +34,8 @@ export default function usePresentationMode(
   }, [handlePageChange, page])
 
   const clickListener = useCallback(
-    event => {
-      if (event.target.tagName === 'A') {
+    (event: MouseEvent) => {
+      if ((event.target as HTMLElement).tagName === 'A') {
         return
       }
 
@@ -48,7 +49,7 @@ export default function usePresentationMode(
   )
 
   const arrowKeyListener = useCallback(
-    event => {
+    (event: KeyboardEvent) => {
       switch (event.key) {
         case 'ArrowLeft':
         case 'ArrowUp':
@@ -114,14 +115,14 @@ export default function usePresentationMode(
   }, [presentationMode, arrowKeyListener, clickListener, mouseWheelListener])
 
   const requestPresentationMode = useCallback(() => {
-    sendMB('pdf-viewer-enter-presentation-mode')
+    sendEvent('pdf-viewer-enter-presentation-mode')
 
     if (pdfJsWrapper) {
       pdfJsWrapper.container.parentElement
         ?.requestFullscreen()
         .catch(debugConsole.error)
     }
-  }, [pdfJsWrapper])
+  }, [pdfJsWrapper, sendEvent])
 
   const handleEnterFullscreen = useCallback(() => {
     if (pdfJsWrapper) {
@@ -132,6 +133,8 @@ export default function usePresentationMode(
       setScale('page-fit')
       pdfJsWrapper.viewer.scrollMode = 3 // page
       pdfJsWrapper.viewer.spreadMode = 0 // none
+
+      pdfJsWrapper.fetchAllData()
 
       setPresentationMode(true)
     }

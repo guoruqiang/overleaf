@@ -1,19 +1,31 @@
 import type { Meta } from '@storybook/react'
 import _ from 'lodash'
-import { SplitTestContext } from '../../frontend/js/shared/context/split-test-context'
+import { SplitTestContext } from '@/shared/context/split-test-context'
 
-export const splitTestsArgTypes = {
-  'local-ccy-format-v2': {
-    description: 'Use local currency formatting',
-    control: { type: 'radio' as const },
+export const defaultSplitTestsArgTypes = {
+  // to be able to use this utility, you need to add the argTypes for each split test in this object
+  // Check the original implementation for an example: https://github.com/overleaf/internal/pull/17809
+  'editor-redesign': {
+    description: 'Enable the new editor redesign',
+    control: {
+      type: 'select' as const,
+    },
+    options: ['enabled'],
+  },
+  uniaccessphase1: {
+    description: 'Enable CIAM designs',
+    control: { type: 'select' as const },
     options: ['default', 'enabled'],
   },
 }
 
-export const withSplitTests = (
+export const withSplitTests = <ArgTypes = typeof defaultSplitTestsArgTypes,>(
   story: Meta,
-  splitTests: (keyof typeof splitTestsArgTypes)[] = []
+  splitTests: (keyof ArgTypes)[] = [],
+  /** @deprecated For demo purposes only. Add actual split tests in defaultSplitTestsArgTypes */
+  _splitTestsArgTypes?: ArgTypes
 ): Meta => {
+  const splitTestsArgTypes = _splitTestsArgTypes ?? defaultSplitTestsArgTypes
   return {
     ...story,
     argTypes: { ...story.argTypes, ..._.pick(splitTestsArgTypes, splitTests) },

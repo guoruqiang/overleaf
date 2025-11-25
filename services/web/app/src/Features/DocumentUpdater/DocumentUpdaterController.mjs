@@ -1,6 +1,6 @@
 import logger from '@overleaf/logger'
-import DocumentUpdaterHandler from './DocumentUpdaterHandler.js'
-import ProjectLocator from '../Project/ProjectLocator.js'
+import DocumentUpdaterHandler from './DocumentUpdaterHandler.mjs'
+import ProjectLocator from '../Project/ProjectLocator.mjs'
 import { plainTextResponse } from '../../infrastructure/Response.js'
 import { expressify } from '@overleaf/promise-utils'
 
@@ -44,7 +44,4 @@ async function getDoc(req, res) {
 
 export default {
   getDoc: expressify(getDoc),
-  promises: {
-    getDoc,
-  },
 }

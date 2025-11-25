@@ -1,12 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../../types/subscription/dashboard/subscription'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
-import { AI_STANDALONE_PLAN_CODE } from '../../../data/add-on-codes'
+import { PaidSubscription } from '../../../../../../../types/subscription/dashboard/subscription'
+import OLButton from '@/shared/components/ol/ol-button'
 
 export function ExpiredSubscription({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
 
@@ -14,25 +13,18 @@ export function ExpiredSubscription({
     <>
       <p>{t('your_subscription_has_expired')}</p>
       <p>
-        <a
-          href={subscription.recurly.accountManagementLink}
-          className="btn btn-secondary-info btn-secondary me-1"
+        <OLButton
+          href={subscription.payment.accountManagementLink}
           target="_blank"
           rel="noreferrer noopener"
+          variant="secondary"
+          className="me-1"
         >
           {t('view_your_invoices')}
-        </a>
-        {isSplitTestEnabled('ai-add-on') && (
-          <a
-            className="btn btn-secondary me-1"
-            href={`/user/subscription/new?planCode=${AI_STANDALONE_PLAN_CODE}`}
-          >
-            {t('buy_overleaf_assist')}
-          </a>
-        )}
-        <a href="/user/subscription/plans" className="btn btn-primary">
+        </OLButton>
+        <OLButton href="/user/subscription/plans" variant="primary">
           {t('create_new_subscription')}
-        </a>
+        </OLButton>
       </p>
     </>
   )

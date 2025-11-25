@@ -1,12 +1,11 @@
-import AuthenticationController from '../Authentication/AuthenticationController.js'
-import PermissionsController from '../Authorization/PermissionsController.js'
-import SubscriptionController from './SubscriptionController.js'
+import AuthenticationController from '../Authentication/AuthenticationController.mjs'
+import PermissionsController from '../Authorization/PermissionsController.mjs'
+import SubscriptionController from './SubscriptionController.mjs'
 import SubscriptionGroupController from './SubscriptionGroupController.mjs'
 import TeamInvitesController from './TeamInvitesController.mjs'
 import { RateLimiter } from '../../infrastructure/RateLimiter.js'
-import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.js'
+import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.mjs'
 import Settings from '@overleaf/settings'
-import { Joi, validate } from '../../infrastructure/Validation.js'
 
 const teamInviteRateLimiter = new RateLimiter('team-invite', {
   points: 10,
@@ -25,30 +24,11 @@ export default {
     }
 
     webRouter.get(
-      '/user/subscription/plans',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.plansPage
-    )
-
-    webRouter.get(
-      '/user/subscription/plans-3',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.plansPageLightDesign
-    )
-
-    webRouter.get(
       '/user/subscription',
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       PermissionsController.useCapabilities(),
       SubscriptionController.userSubscriptionPage
-    )
-
-    webRouter.get(
-      '/user/subscription/choose-your-plan',
-      AuthenticationController.requireLogin(),
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.interstitialPaymentPage
     )
 
     webRouter.get(
@@ -65,13 +45,6 @@ export default {
       SubscriptionController.canceledSubscription
     )
 
-    webRouter.get(
-      '/user/subscription/recurly/:pageType',
-      AuthenticationController.requireLogin(),
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.redirectToHostedPage
-    )
-
     webRouter.delete(
       '/subscription/group/user',
       AuthenticationController.requireLogin(),
@@ -81,10 +54,72 @@ export default {
     )
 
     webRouter.get(
-      '/user/subscription/group/request-confirmation',
+      '/user/subscription/group/add-users',
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionGroupController.requestConfirmation
+      SubscriptionGroupController.addSeatsToGroupSubscription
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/preview',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.previewAddSeatsSubscriptionChange
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/create',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.createAddSeatsSubscriptionChange
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/sales-contact-form',
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.submitForm
+    )
+
+    webRouter.get(
+      '/user/subscription/group/upgrade-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.subscriptionUpgradePage
+    )
+
+    webRouter.get(
+      '/user/subscription/group/group-plan-per-user-prices',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.getGroupPlanPerUserPrices
+    )
+
+    webRouter.post(
+      '/user/subscription/group/upgrade-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.upgradeSubscription
+    )
+
+    webRouter.get(
+      '/user/subscription/group/missing-billing-information',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.missingBillingInformation
+    )
+
+    webRouter.get(
+      '/user/subscription/group/manually-collected-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.manuallyCollectedSubscription
+    )
+
+    webRouter.get(
+      '/user/subscription/group/subtotal-limit-exceeded',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.subtotalLimitExceeded
     )
 
     // Team invites
@@ -112,7 +147,12 @@ export default {
     // recurly callback
     publicApiRouter.post(
       '/user/subscription/callback',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      RateLimiterMiddleware.rateLimit(
+        new RateLimiter('recurly-callback', {
+          points: 200,
+          duration: 60,
+        })
+      ),
       AuthenticationController.requireBasicAuth({
         [Settings.apis.recurly.webhookUser]: Settings.apis.recurly.webhookPass,
       }),
@@ -121,11 +161,11 @@ export default {
     )
 
     // user changes their account state
-    webRouter.post(
-      '/user/subscription/update',
+    webRouter.get(
+      '/user/subscription/preview',
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.updateSubscription
+      SubscriptionController.previewSubscription
     )
     webRouter.get(
       '/user/subscription/addon/:addOnCode/add',
@@ -136,24 +176,20 @@ export default {
     webRouter.post(
       '/user/subscription/addon/:addOnCode/add',
       AuthenticationController.requireLogin(),
-      validate({
-        params: Joi.object({
-          addOnCode: Joi.string(),
-        }),
-      }),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       SubscriptionController.purchaseAddon
     )
     webRouter.post(
       '/user/subscription/addon/:addOnCode/remove',
       AuthenticationController.requireLogin(),
-      validate({
-        params: Joi.object({
-          addOnCode: Joi.string(),
-        }),
-      }),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       SubscriptionController.removeAddon
+    )
+    webRouter.post(
+      '/user/subscription/addon/:addOnCode/reactivate',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.reactivateAddon
     )
     webRouter.post(
       '/user/subscription/cancel-pending',
@@ -166,6 +202,18 @@ export default {
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       SubscriptionController.cancelSubscription
+    )
+    webRouter.post(
+      '/user/subscription/pause/:pauseCycles',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.pauseSubscription
+    )
+    webRouter.post(
+      '/user/subscription/resume',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.resumeSubscription
     )
     webRouter.post(
       '/user/subscription/reactivate',

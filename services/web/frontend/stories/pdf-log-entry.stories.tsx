@@ -1,12 +1,12 @@
 import PdfLogEntry from '@/features/pdf-preview/components/pdf-log-entry'
 import type { Meta, StoryObj } from '@storybook/react'
-import { bsVersionDecorator } from '../../.storybook/utils/with-bootstrap-switcher'
 import { ruleIds } from '@/ide/human-readable-logs/HumanReadableLogsHints'
 import { ScopeDecorator } from './decorators/scope'
 import { useMeta } from './hooks/use-meta'
 import { FC, ReactNode } from 'react'
-import { useScope } from './hooks/use-scope'
+import { EditorViewContext } from '@/features/ide-react/context/editor-view-context'
 import { EditorView } from '@codemirror/view'
+import { LogEntry } from '@/features/pdf-preview/util/types'
 
 const fakeSourceLocation = {
   file: 'file.tex',
@@ -14,7 +14,7 @@ const fakeSourceLocation = {
   column: 5,
 }
 
-const fakeLogEntry = {
+const fakeLogEntry: LogEntry = {
   key: 'fake',
   ruleId: 'hint_misplaced_alignment_tab_character',
   message: 'Fake message',
@@ -34,7 +34,6 @@ const fakeArgs = {
   formattedContent: 'This is a log entry',
   level: 'error' as const,
   extraInfoURL: 'https://example.com',
-  showCloseButton: true,
   showSourceLocationLink: true,
   rawContent: 'This is a raw log entry',
   contentDetails: ['detail 1', 'detail 2'],
@@ -51,7 +50,6 @@ const meta: Meta<typeof PdfLogEntry> = {
   decorators: [ScopeDecorator],
   argTypes: {
     ruleId: { control: 'select', options: [...ruleIds, 'other'] },
-    ...bsVersionDecorator.argTypes,
   },
   args: fakeArgs,
 }
@@ -60,10 +58,30 @@ export default meta
 
 type Story = StoryObj<typeof PdfLogEntry>
 
-const Provider: FC<{ children: ReactNode }> = ({ children }) => {
+const MockEditorViewProvider: FC<React.PropsWithChildren> = ({ children }) => {
+  const value = {
+    view: new EditorView({
+      doc: '\\begin{document',
+    }),
+    setView: () => {},
+  }
+
+  return (
+    <EditorViewContext.Provider value={value}>
+      {children}
+    </EditorViewContext.Provider>
+  )
+}
+
+const Provider: FC<React.PropsWithChildren<{ children: ReactNode }>> = ({
+  children,
+}) => {
   useMeta({ 'ol-showAiErrorAssistant': true })
-  useScope({ 'editor.view': new EditorView({ doc: '\\begin{document' }) })
-  return <div className="logs-pane p-2">{children}</div>
+  return (
+    <MockEditorViewProvider>
+      <div className="logs-pane p-2">{children}</div>
+    </MockEditorViewProvider>
+  )
 }
 
 export const PdfLogEntryWithControls: Story = {

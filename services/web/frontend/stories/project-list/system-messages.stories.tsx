@@ -1,10 +1,9 @@
 import SystemMessages from '@/shared/components/system-messages'
 import useFetchMock from '../hooks/use-fetch-mock'
-import { FetchMockStatic } from 'fetch-mock'
-import { bsVersionDecorator } from '../../../.storybook/utils/with-bootstrap-switcher'
+import { type FetchMock } from 'fetch-mock'
 
 export const SystemMessage = (args: any) => {
-  useFetchMock((fetchMock: FetchMockStatic) => {
+  useFetchMock((fetchMock: FetchMock) => {
     fetchMock.get(/\/system\/messages/, [
       {
         _id: 1,
@@ -24,7 +23,7 @@ export const SystemMessage = (args: any) => {
 }
 
 export const TranslationMessage = (args: any) => {
-  useFetchMock((fetchMock: FetchMockStatic) => {
+  useFetchMock((fetchMock: FetchMock) => {
     fetchMock.get(/\/system\/messages/, [])
   })
 
@@ -40,7 +39,4 @@ export const TranslationMessage = (args: any) => {
 export default {
   title: 'Project List / System Messages',
   component: SystemMessages,
-  argTypes: {
-    ...bsVersionDecorator.argTypes,
-  },
 }

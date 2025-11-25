@@ -5,16 +5,20 @@ import { Diff, DocDiffResponse } from '../../services/types/doc'
 import { useHistoryContext } from '../../context/history-context'
 import { diffDoc } from '../../services/api'
 import { highlightsFromDiffResponse } from '../../utils/highlights-from-diff-response'
-import { useErrorHandler } from 'react-error-boundary'
+import { useErrorBoundary } from 'react-error-boundary'
 import useAsync from '../../../../shared/hooks/use-async'
 import { useTranslation } from 'react-i18next'
 
 function DiffView() {
-  const { selection, projectId, loadingFileDiffs } = useHistoryContext()
+  const { selection, projectId, loadingFileDiffs, updatesInfo } =
+    useHistoryContext()
   const { isLoading, data, runAsync } = useAsync<DocDiffResponse>()
   const { t } = useTranslation()
   const { updateRange, selectedFile } = selection
-  const handleError = useErrorHandler()
+  const { showBoundary } = useErrorBoundary()
+
+  const isCurrentVersion =
+    !!updateRange && updatesInfo.updates[0].toV === updateRange.toV
 
   useEffect(() => {
     if (!updateRange || !selectedFile?.pathname || loadingFileDiffs) {
@@ -33,7 +37,7 @@ function DiffView() {
         abortController.signal
       )
     )
-      .catch(handleError)
+      .catch(showBoundary)
       .finally(() => {
         abortController = null
       })
@@ -50,7 +54,7 @@ function DiffView() {
     updateRange,
     selectedFile,
     loadingFileDiffs,
-    handleError,
+    showBoundary,
   ])
 
   const diff = useMemo(() => {
@@ -73,7 +77,11 @@ function DiffView() {
   return (
     <div className="doc-panel">
       <div className="history-header toolbar-container">
-        <Toolbar diff={diff} selection={selection} />
+        <Toolbar
+          diff={diff}
+          selection={selection}
+          isCurrentVersion={isCurrentVersion}
+        />
       </div>
       <div className="doc-container">
         <Main diff={diff} isLoading={isLoading || loadingFileDiffs} />

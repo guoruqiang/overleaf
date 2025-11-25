@@ -10,7 +10,10 @@ const buildConfig = () => {
       workerPublicPath: '/__cypress/src/',
     },
     devServer: {
-      static: path.join(__dirname, '../../public'),
+      static: {
+        directory: path.join(__dirname, '../../public'),
+        watch: false,
+      },
       port: 3200,
     },
     stats: 'none',
@@ -41,6 +44,12 @@ const buildConfig = () => {
   addWorker(
     'hunspell-worker',
     '../../frontend/js/features/source-editor/hunspell/hunspell.worker'
+  )
+
+  // add entrypoint under '/' for references worker
+  addWorker(
+    'references-worker',
+    '../../frontend/js/features/ide-react/references/references.worker.ts'
   )
 
   // add entrypoints under '/' for pdfjs workers

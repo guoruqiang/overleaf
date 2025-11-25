@@ -1,13 +1,14 @@
 import fs from 'node:fs'
 import minimist from 'minimist'
 import { ObjectId } from '../app/src/infrastructure/mongodb.js'
-import DocstoreManager from '../app/src/Features/Docstore/DocstoreManager.js'
-import FileStoreHandler from '../app/src/Features/FileStore/FileStoreHandler.js'
+import DocstoreManager from '../app/src/Features/Docstore/DocstoreManager.mjs'
+import FileStoreHandler from '../app/src/Features/FileStore/FileStoreHandler.mjs'
 import FileWriter from '../app/src/infrastructure/FileWriter.js'
-import ProjectEntityMongoUpdateHandler from '../app/src/Features/Project/ProjectEntityMongoUpdateHandler.js'
-import ProjectLocator from '../app/src/Features/Project/ProjectLocator.js'
+import ProjectEntityMongoUpdateHandler from '../app/src/Features/Project/ProjectEntityMongoUpdateHandler.mjs'
+import ProjectLocator from '../app/src/Features/Project/ProjectLocator.mjs'
 import RedisWrapper from '@overleaf/redis-wrapper'
 import Settings from '@overleaf/settings'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const opts = parseArgs()
 const redis = RedisWrapper.createClient(Settings.redis.web)
@@ -76,7 +77,8 @@ async function processDoc(projectId, docId) {
       await ProjectEntityMongoUpdateHandler.promises.replaceDocWithFile(
         new ObjectId(projectId),
         new ObjectId(docId),
-        fileRef
+        fileRef,
+        null // unset lastUpdatedBy
       )
       await deleteDocFromMongo(projectId, doc)
       await deleteDocFromRedis(projectId, docId)
@@ -154,7 +156,7 @@ async function deleteDocFromRedis(projectId, docId) {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   process.exit(0)
 } catch (error) {
   console.error(error)

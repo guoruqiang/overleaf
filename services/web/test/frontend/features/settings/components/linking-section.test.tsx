@@ -52,33 +52,26 @@ describe('<LinkingSection />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
-  })
-
-  it('shows header', async function () {
-    renderSectionWithProviders()
-
-    screen.getByText('Integrations')
-    screen.getByText(
-      'You can link your Overleaf account with other services to enable the features described below.'
-    )
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('lists SSO providers', async function () {
     renderSectionWithProviders()
-    screen.getByText('linked accounts')
+    screen.getByText('Linked accounts')
 
     screen.getByText('Google')
     screen.getByText('Log in with Google.')
-    screen.getByRole('button', { name: 'Unlink' })
+    screen.getByRole('button', { name: 'Unlink Google' })
 
     screen.getByText('ORCID')
     screen.getByText(
       /Securely establish your identity by linking your ORCID iD/
     )
-    const helpLink = screen.getByRole('link', { name: 'Learn more' })
+    const helpLink = screen.getByRole('link', {
+      name: 'Learn more about ORCID',
+    })
     expect(helpLink.getAttribute('href')).to.equal('/blog/434')
-    const linkButton = screen.getByRole('link', { name: 'Link' })
+    const linkButton = screen.getByRole('link', { name: 'Link ORCID' })
     expect(linkButton.getAttribute('href')).to.equal('/auth/orcid?intent=link')
   })
 
@@ -92,6 +85,6 @@ describe('<LinkingSection />', function () {
     window.metaAttributesCache.delete('ol-oauthProviders')
     renderSectionWithProviders()
 
-    expect(screen.queryByText('linked accounts')).to.not.exist
+    expect(screen.queryByText('Linked accounts')).to.not.exist
   })
 })

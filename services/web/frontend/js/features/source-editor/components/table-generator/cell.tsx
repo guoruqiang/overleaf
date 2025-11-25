@@ -164,9 +164,11 @@ export const Cell: FC<{
       )
       loadMathJax()
         .then(async MathJax => {
-          if (renderDiv.current) {
-            await MathJax.typesetPromise([renderDiv.current])
+          const element = renderDiv.current
+          if (element) {
+            await MathJax.typesetPromise([element])
             view.requestMeasure()
+            MathJax.typesetClear([element])
           }
         })
         .catch(() => {})
@@ -174,8 +176,8 @@ export const Cell: FC<{
   }, [cellData.content, editing, view])
 
   const onInput = useCallback(
-    e => {
-      update(filterInput(e.target.value))
+    (e: React.FormEvent<HTMLTextAreaElement>) => {
+      update(filterInput((e.target as HTMLTextAreaElement).value))
     },
     [update, filterInput]
   )

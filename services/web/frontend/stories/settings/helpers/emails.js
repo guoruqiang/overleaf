@@ -174,7 +174,6 @@ export function reconfirmationSetupMocks(fetchMock) {
   defaultSetupMocks(fetchMock)
   fetchMock.get(/\/user\/emails/, fakeReconfirmationUsersData, {
     delay: MOCK_DELAY,
-    overwriteRoutes: true,
   })
 }
 
@@ -186,7 +185,6 @@ export function emailLimitSetupMocks(fetchMock) {
   defaultSetupMocks(fetchMock)
   fetchMock.get(/\/user\/emails/, userData, {
     delay: MOCK_DELAY,
-    overwriteRoutes: true,
   })
 }
 
@@ -202,10 +200,6 @@ export function setDefaultMeta() {
     hasSamlFeature: true,
     samlInitPath: 'saml/init',
   })
-  localStorage.setItem(
-    'showInstitutionalLeaversSurveyUntil',
-    (Date.now() - 1000 * 60 * 60).toString()
-  )
 }
 
 export function setReconfirmationMeta() {

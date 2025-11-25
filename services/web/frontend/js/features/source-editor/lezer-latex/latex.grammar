@@ -78,6 +78,7 @@
     SubParagraphCtrlSeq,
     InputCtrlSeq,
     IncludeCtrlSeq,
+    SubfileCtrlSeq,
     ItemCtrlSeq,
     NewTheoremCtrlSeq,
     TheoremStyleCtrlSeq,
@@ -108,7 +109,9 @@
     TextStrikeOutCtrlSeq,
     EmphasisCtrlSeq,
     UnderlineCtrlSeq,
-    SetLengthCtrlSeq
+    SetLengthCtrlSeq,
+    FootnoteCtrlSeq,
+    EndnoteCtrlSeq
 }
 
 @external specialize {EnvName} specializeEnvName from "./tokens.mjs" {
@@ -348,6 +351,9 @@ KnownCommand<ArgumentType> {
     Include {
         IncludeCtrlSeq IncludeArgument { FilePathArgument }
     } |
+    Subfile {
+        SubfileCtrlSeq SubfileArgument { FilePathArgument }
+    } |
     Centering {
         CenteringCtrlSeq
     } |
@@ -410,6 +416,12 @@ KnownCommand<ArgumentType> {
     } |
     SetLengthCommand {
         SetLengthCtrlSeq optionalWhitespace? ShortTextArgument optionalWhitespace? ShortTextArgument
+    } |
+    FootnoteCommand {
+        FootnoteCtrlSeq optionalWhitespace? OptionalArgument? optionalWhitespace? TextArgument
+    } |
+    EndnoteCommand {
+        EndnoteCtrlSeq optionalWhitespace? OptionalArgument? optionalWhitespace? TextArgument
     }
 }
 
@@ -480,14 +492,14 @@ SectioningCommand<Command> {
 documentSection<Command, Next> {
     SectioningCommand<Command> Content<(sectionText | !section Next)*>
 }
-Book[@isGroup="$SectioningCommand"] { documentSection<BookCtrlSeq, Part | Chapter | Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
-Part[@isGroup="$SectioningCommand"] { documentSection<PartCtrlSeq, Chapter | Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
-Chapter[@isGroup="$SectioningCommand"] { documentSection<ChapterCtrlSeq, Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
-Section[@isGroup="$SectioningCommand"] { documentSection<SectionCtrlSeq, SubSection | SubSubSection | Paragraph | SubParagraph> }
-SubSection[@isGroup="$SectioningCommand"] { documentSection<SubSectionCtrlSeq, SubSubSection | Paragraph | SubParagraph> }
-SubSubSection[@isGroup="$SectioningCommand"] { documentSection<SubSubSectionCtrlSeq, Paragraph | SubParagraph> }
-Paragraph[@isGroup="$SectioningCommand"] { documentSection<ParagraphCtrlSeq, SubParagraph> }
-SubParagraph[@isGroup="$SectioningCommand"] { SectioningCommand<SubParagraphCtrlSeq> Content<sectionText*> }
+Book[@isGroup="$Section"] { documentSection<BookCtrlSeq, Part | Chapter | Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
+Part[@isGroup="$Section"] { documentSection<PartCtrlSeq, Chapter | Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
+Chapter[@isGroup="$Section"] { documentSection<ChapterCtrlSeq, Section | SubSection | SubSubSection | Paragraph | SubParagraph> }
+Section[@isGroup="$Section"] { documentSection<SectionCtrlSeq, SubSection | SubSubSection | Paragraph | SubParagraph> }
+SubSection[@isGroup="$Section"] { documentSection<SubSectionCtrlSeq, SubSubSection | Paragraph | SubParagraph> }
+SubSubSection[@isGroup="$Section"] { documentSection<SubSubSectionCtrlSeq, Paragraph | SubParagraph> }
+Paragraph[@isGroup="$Section"] { documentSection<ParagraphCtrlSeq, SubParagraph> }
+SubParagraph[@isGroup="$Section"] { SectioningCommand<SubParagraphCtrlSeq> Content<sectionText*> }
 
 sectioningCommand {
     Book | Part | Chapter | Section | SubSection | SubSubSection | Paragraph | SubParagraph
@@ -692,7 +704,7 @@ NonEmptyGroup<GroupContent> {
 
 ///  MATH MODE
 
-DollarMath {
+DollarMath[@isGroup="$MathContainer"] {
   Dollar (InlineMath | DisplayMath) Dollar
 }
 
@@ -714,7 +726,7 @@ CloseParenMath[openedBy=OpenParenMath] {
 }
 
 // alternative syntax \( math \) for inline math, it is the same as $ math $
-ParenMath {
+ParenMath[@isGroup="$MathContainer"] {
     OpenParenMath
     Math?
     CloseParenMath
@@ -729,7 +741,7 @@ CloseBracketMath[openedBy=OpenBracketMath] {
 }
 
 // alternative syntax \[ math \] for display math, it is the same as $$ math $$
-BracketMath {
+BracketMath[@isGroup="$MathContainer"] {
     OpenBracketMath
     Math?
     CloseBracketMath

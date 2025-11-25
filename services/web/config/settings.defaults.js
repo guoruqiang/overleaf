@@ -1,4 +1,4 @@
-const Path = require('path')
+const Path = require('node:path')
 const { merge } = require('@overleaf/settings/merge')
 
 let defaultFeatures, siteUrl
@@ -240,11 +240,20 @@ module.exports = {
       // url: "http://#{process.env['CLSI_LB_HOST']}:3014"
       backendGroupName: undefined,
       submissionBackendClass:
-        process.env.CLSI_SUBMISSION_BACKEND_CLASS || 'n2d',
+        process.env.CLSI_SUBMISSION_BACKEND_CLASS || 'c3d',
+    },
+    clsiCache: {
+      instances: JSON.parse(process.env.CLSI_CACHE_INSTANCES || '[]'),
     },
     project_history: {
       sendProjectStructureOps: true,
       url: `http://${process.env.PROJECT_HISTORY_HOST || '127.0.0.1'}:3054`,
+    },
+    historyBackupDeletion: {
+      enabled: false,
+      url: `http://${process.env.HISTORY_BACKUP_DELETION_HOST || '127.0.0.1'}:3101`,
+      user: process.env.HISTORY_BACKUP_DELETION_USER || 'staging',
+      pass: process.env.HISTORY_BACKUP_DELETION_PASS,
     },
     realTime: {
       url: `http://${process.env.REALTIME_HOST || '127.0.0.1'}:3026`,
@@ -268,6 +277,24 @@ module.exports = {
       url:
         process.env.HAVE_I_BEEN_PWNED_URL || 'https://api.pwnedpasswords.com',
       timeout: parseInt(process.env.HAVE_I_BEEN_PWNED_TIMEOUT, 10) || 5 * 1000,
+    },
+    v1_history: {
+      url:
+        process.env.V1_HISTORY_URL ||
+        `http://${process.env.V1_HISTORY_HOST || '127.0.0.1'}:${
+          process.env.V1_HISTORY_PORT || '3100'
+        }/api`,
+      urlForGitBridge: process.env.V1_HISTORY_URL_FOR_GIT_BRIDGE,
+      user: process.env.V1_HISTORY_USER || 'staging',
+      pass:
+        process.env.V1_HISTORY_PASS ||
+        process.env.V1_HISTORY_PASSWORD ||
+        'password',
+
+      buckets: {
+        globalBlobs: process.env.OVERLEAF_EDITOR_BLOBS_BUCKET,
+        projectBlobs: process.env.OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET,
+      },
     },
 
     // For legacy reasons, we need to populate the below objects.
@@ -360,6 +387,7 @@ module.exports = {
   adminUrl: process.env.ADMIN_URL,
   adminOnlyLogin: process.env.ADMIN_ONLY_LOGIN === 'true',
   adminPrivilegeAvailable: process.env.ADMIN_PRIVILEGE_AVAILABLE === 'true',
+  adminRolesEnabled: false,
   blockCrossOriginRequests: process.env.BLOCK_CROSS_ORIGIN_REQUESTS === 'true',
   allowedOrigins: (process.env.ALLOWED_ORIGINS || siteUrl).split(','),
 
@@ -404,6 +432,7 @@ module.exports = {
   ],
 
   disableChat: process.env.OVERLEAF_DISABLE_CHAT === 'true',
+  disableLinkSharing: process.env.OVERLEAF_DISABLE_LINK_SHARING === 'true',
   enableSubscriptions: false,
   restrictedCountries: [],
   enableOnboardingEmails: process.env.ENABLE_ONBOARDING_EMAILS === 'true',
@@ -630,11 +659,17 @@ module.exports = {
   // If you are running Overleaf behind a proxy (like Apache, Nginx, etc)
   // then set this to true to allow it to correctly detect the forwarded IP
   // address and http/https protocol information.
-  behindProxy: false,
+  behindProxy: true,
+  trustedProxyIps: process.env.TRUSTED_PROXY_IPS || 'loopback',
 
   // Delay before closing the http server upon receiving a SIGTERM process signal.
   gracefulShutdownDelayInMs:
     parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '5', 10) * seconds,
+
+  maxReconnectGracefullyIntervalMs: parseInt(
+    process.env.MAX_RECONNECT_GRACEFULLY_INTERVAL_MS ?? '30000',
+    10
+  ),
 
   // Expose the hostname in the `X-Served-By` response header
   exposeHostname: process.env.EXPOSE_HOSTNAME === 'true',
@@ -673,17 +708,33 @@ module.exports = {
 
   primary_email_check_expiration: 1000 * 60 * 60 * 24 * 90, // 90 days
 
+  userHardDeletionDelay:
+    parseInt(process.env.OVERLEAF_USER_HARD_DELETION_DELAY, 10) ||
+    1000 * 60 * 60 * 24 * 90, // 90 days
+  projectHardDeletionDelay:
+    parseInt(process.env.OVERLEAF_PROJECT_HARD_DELETION_DELAY, 10) ||
+    1000 * 60 * 60 * 24 * 90, // 90 days
+
+  // Maximum Delay before sending comment mention notifications
+  notificationMaxDelay:
+    parseInt(process.env.COMMENT_MENTION_DELAY_MINUTES) || 30 * 60 * 1000, // 30 minutes
+
+  // Comment mention notifications will wait at least this long before being sent
+  notificationMinDelay:
+    parseInt(process.env.COMMENT_MENTION_DELAY_MINUTES) || 10 * 60 * 1000, // 10 minutes
+
   // Maximum JSON size in HTTP requests
   // We should be able to process twice the max doc length, to allow for
   //   - the doc content
   //   - text ranges spanning the whole doc
   //
-  // There's also overhead required for the JSON encoding and the UTF-8 encoding,
-  // theoretically up to 3 times the max doc length. On the other hand, we don't
-  // want to block the event loop with JSON parsing, so we try to find a
-  // practical compromise.
+  // There's also overhead required for the JSON encoding and the UTF-8
+  // encoding, theoretically up to 6 times the max doc length (e.g. a document
+  // entirely filled with "\u0011" characters). On the other hand, we don't want
+  // to block the event loop with JSON parsing, so we try to find a practical
+  // compromise.
   max_json_request_size:
-    parseInt(process.env.MAX_JSON_REQUEST_SIZE) || 6 * 1024 * 1024, // 6 MB
+    parseInt(process.env.MAX_JSON_REQUEST_SIZE) || 12 * 1024 * 1024, // 12 MB
 
   // Internal configs
   // ----------------
@@ -735,8 +786,7 @@ module.exports = {
 
     right_footer: [
       {
-        text: "<i class='fa fa-github-square'></i> Fork on GitHub!",
-        url: 'https://github.com/overleaf/overleaf',
+        text: '<a href="https://github.com/overleaf/overleaf">Fork on GitHub!</a>',
       },
     ],
 
@@ -755,6 +805,10 @@ module.exports = {
       .split(',')
       .map(x => x.trim())
       .filter(x => x !== ''),
+    trustedUsersRegex: process.env.CAPTCHA_TRUSTED_USERS_REGEX
+      ? // Enforce matching of the entire input.
+        new RegExp(`^${process.env.CAPTCHA_TRUSTED_USERS_REGEX}$`)
+      : null,
     disabled: {
       invite: true,
       login: true,
@@ -770,7 +824,10 @@ module.exports = {
     '/templates/index': '/templates/',
   },
 
-  reloadModuleViewsOnEachRequest: process.env.NODE_ENV === 'development',
+  enablePugCache: process.env.ENABLE_PUG_CACHE === 'true',
+  reloadModuleViewsOnEachRequest:
+    process.env.ENABLE_PUG_CACHE !== 'true' &&
+    process.env.NODE_ENV === 'development',
 
   rateLimit: {
     subnetRateLimiterDisabled:
@@ -857,6 +914,7 @@ module.exports = {
           'figcaption',
           'span',
           'source',
+          'track',
           'video',
           'del',
         ],
@@ -882,7 +940,7 @@ module.exports = {
           col: ['width'],
           figure: ['class', 'id', 'style'],
           figcaption: ['class', 'id', 'style'],
-          i: ['aria-hidden', 'aria-label', 'class', 'id'],
+          i: ['aria-hidden', 'aria-label', 'class', 'id', 'translate'],
           iframe: [
             'allowfullscreen',
             'frameborder',
@@ -907,6 +965,7 @@ module.exports = {
             'style',
           ],
           tr: ['class'],
+          track: ['src', 'kind', 'srcLang', 'label'],
           video: ['alt', 'class', 'controls', 'height', 'width'],
         },
       },
@@ -926,11 +985,10 @@ module.exports = {
     tprFileViewRefreshError: [],
     tprFileViewRefreshButton: [],
     tprFileViewNotOriginalImporter: [],
-    newFilePromotions: [],
     contactUsModal: [],
-    editorToolbarButtons: [],
     sourceEditorExtensions: [],
     sourceEditorComponents: [],
+    pdfLogEntryHeaderActionComponents: [],
     pdfLogEntryComponents: [],
     pdfLogEntriesComponents: [],
     pdfPreviewPromotions: [],
@@ -938,7 +996,9 @@ module.exports = {
     sourceEditorCompletionSources: [],
     sourceEditorSymbolPalette: [],
     sourceEditorToolbarComponents: [],
-    editorPromotions: [],
+    sourceEditorToolbarEndButtons: [],
+    rootContextProviders: [],
+    mainEditorLayoutModals: [],
     langFeedbackLinkingWidgets: [],
     labsExperiments: [],
     integrationLinkingWidgets: [],
@@ -949,17 +1009,40 @@ module.exports = {
     editorLeftMenuManageTemplate: [],
     oauth2Server: [],
     managedGroupSubscriptionEnrollmentNotification: [],
-    userNotifications: [],
     managedGroupEnrollmentInvite: [],
     ssoCertificateInfo: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
     usGovBanner: [],
+    rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
     settingsEntries: [],
     autoCompleteExtensions: [],
     sectionTitleGenerators: [],
-    toastGenerators: [],
+    toastGenerators: [
+      Path.resolve(
+        __dirname,
+        '../frontend/js/features/pdf-preview/components/synctex-toasts'
+      ),
+    ],
+    editorSidebarComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/full-project-search/frontend/js/components/full-project-search.tsx'
+      ),
+    ],
+    fileTreeToolbarComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/full-project-search/frontend/js/components/full-project-search-button.tsx'
+      ),
+    ],
+    fullProjectSearchPanel: [],
+    integrationPanelComponents: [],
+    referenceSearchSetting: [],
+    errorLogsComponents: [],
+    referenceIndices: [],
+    railEntries: [],
   },
 
   moduleImportSequence: [
@@ -983,7 +1066,8 @@ module.exports = {
 
   unsupportedBrowsers: {
     ie: '<=11',
-    safari: '<=13',
+    safari: '<=14',
+    firefox: '<=78',
   },
 
   // ID of the IEEE brand in the rails app

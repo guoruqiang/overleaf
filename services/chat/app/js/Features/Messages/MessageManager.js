@@ -1,5 +1,7 @@
 import { db, ObjectId } from '../../mongodb.js'
 
+export class MissingMessageError extends Error {}
+
 export async function createMessage(roomId, userId, content, timestamp) {
   let newMessageOpts = {
     content,
@@ -75,6 +77,26 @@ export async function deleteMessage(roomId, messageId) {
     room_id: roomId,
   })
   await db.messages.deleteOne(query)
+}
+
+export async function deleteUserMessage(userId, roomId, messageId) {
+  await db.messages.deleteOne({
+    _id: new ObjectId(messageId),
+    user_id: new ObjectId(userId),
+    room_id: new ObjectId(roomId),
+  })
+}
+
+export async function getMessage(roomId, messageId) {
+  const query = _ensureIdsAreObjectIds({
+    _id: messageId,
+    room_id: roomId,
+  })
+  const message = await db.messages.findOne(query)
+  if (!message) {
+    throw new MissingMessageError(`Message not found`)
+  }
+  return message
 }
 
 function _ensureIdsAreObjectIds(query) {

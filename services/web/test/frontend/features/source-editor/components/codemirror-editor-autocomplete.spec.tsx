@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import { Folder } from '../../../../../types/folder'
 import { docId, mockDocContent } from '../helpers/mock-doc'
 import { mockScope } from '../helpers/mock-scope'
@@ -65,7 +64,6 @@ describe('autocomplete', { scrollBehavior: false }, function () {
     ]
 
     const scope = mockScope()
-    scope.project.rootFolder = rootFolder
 
     cy.mount(
       <TestContainer>
@@ -308,7 +306,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
       packageNames: new Set(['foo']),
     }
 
-    const MetadataProvider: FC = ({ children }) => {
+    const MetadataProvider: FC<React.PropsWithChildren> = ({ children }) => {
       return (
         <MetadataContext.Provider value={metadata}>
           {children}
@@ -377,12 +375,17 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     const scope = mockScope()
 
-    const ReferencesProvider: FC = ({ children }) => {
+    const ReferencesProvider: FC<React.PropsWithChildren> = ({ children }) => {
       return (
         <ReferencesContext.Provider
           value={{
             referenceKeys: new Set(['ref-1', 'ref-2', 'ref-3']),
             indexAllReferences: cy.stub(),
+            searchLocalReferences() {
+              return Promise.resolve({
+                hits: [],
+              })
+            },
           }}
         >
           {children}
@@ -447,7 +450,6 @@ describe('autocomplete', { scrollBehavior: false }, function () {
     ]
 
     const scope = mockScope()
-    scope.project.rootFolder = rootFolder
 
     cy.mount(
       <TestContainer>
@@ -729,7 +731,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
       packageNames: new Set<string>('amsmath'),
     }
 
-    const MetadataProvider: FC = ({ children }) => {
+    const MetadataProvider: FC<React.PropsWithChildren> = ({ children }) => {
       return (
         <MetadataContext.Provider value={metadata}>
           {children}
@@ -911,7 +913,6 @@ describe('autocomplete', { scrollBehavior: false }, function () {
     ]
 
     const scope = mockScope()
-    scope.project.rootFolder = rootFolder
 
     cy.mount(
       <TestContainer>

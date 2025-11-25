@@ -7,7 +7,7 @@ import {
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import { undo } from '@codemirror/commands'
 import { ancestorNodeOfType } from '../../utils/tree-operations/ancestors'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import { PastedContentMenu } from '../../components/paste-html/pasted-content-menu'
 import { SplitTestProvider } from '../../../../shared/context/split-test-context'
 
@@ -81,7 +81,7 @@ const pastedContentTheme = EditorView.baseTheme({
     flexDirection: 'column',
     boxSizing: 'border-box',
     fontSize: '14px',
-    fontFamily: '"Lato", sans-serif',
+    fontFamily: 'var(--font-sans)',
   },
   '.ol-cm-pasted-content-menu-item': {
     color: 'inherit',
@@ -99,6 +99,9 @@ const pastedContentTheme = EditorView.baseTheme({
     },
     '&:hover': {
       backgroundColor: 'rgba(125, 125, 125, 0.2)',
+    },
+    '& .material-symbols': {
+      verticalAlign: 'middle',
     },
   },
   '.ol-cm-pasted-content-menu-item-label': {
@@ -171,7 +174,8 @@ class PastedContentMenuWidget extends WidgetType {
 
   toDOM(view: EditorView) {
     const element = document.createElement('span')
-    ReactDOM.render(
+    const root = createRoot(element)
+    root.render(
       <SplitTestProvider>
         <PastedContentMenu
           insertPastedContent={this.insertPastedContent}
@@ -179,8 +183,7 @@ class PastedContentMenuWidget extends WidgetType {
           formatted={this.formatted}
           pastedContent={this.pastedContent}
         />
-      </SplitTestProvider>,
-      element
+      </SplitTestProvider>
     )
     return element
   }

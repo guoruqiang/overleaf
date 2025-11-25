@@ -7,13 +7,16 @@ const HTTPStatus = require('http-status')
 const fs = require('node:fs')
 const { promisify } = require('node:util')
 const config = require('config')
+const OError = require('@overleaf/o-error')
 
 const logger = require('@overleaf/logger')
 const { Chunk, ChunkResponse, Blob } = require('overleaf-editor-core')
 const {
   BlobStore,
+  BatchBlobStore,
   blobHash,
   chunkStore,
+  redisBuffer,
   HashCheckBlobStore,
   ProjectArchive,
   zipStore,
@@ -23,6 +26,9 @@ const render = require('./render')
 const expressify = require('./expressify')
 const withTmpDir = require('./with_tmp_dir')
 const StreamSizeLimit = require('./stream_size_limit')
+const { getProjectBlobsBatch } = require('../../storage/lib/blob_store')
+const assert = require('../../storage/lib/assert')
+const { getChunkMetadataForVersion } = require('../../storage/lib/chunk_store')
 
 const pipeline = promisify(Stream.pipeline)
 
@@ -33,6 +39,7 @@ async function initializeProject(req, res, next) {
     res.status(HTTPStatus.OK).json({ projectId })
   } catch (err) {
     if (err instanceof chunkStore.AlreadyInitialized) {
+      logger.warn({ err, projectId }, 'failed to initialize')
       render.conflict(res)
     } else {
       throw err
@@ -85,6 +92,26 @@ async function getLatestHistory(req, res, next) {
   }
 }
 
+async function getLatestHistoryRaw(req, res, next) {
+  const projectId = req.swagger.params.project_id.value
+  const readOnly = req.swagger.params.readOnly.value
+  try {
+    const { startVersion, endVersion, endTimestamp } =
+      await chunkStore.getLatestChunkMetadata(projectId, { readOnly })
+    res.json({
+      startVersion,
+      endVersion,
+      endTimestamp,
+    })
+  } catch (err) {
+    if (err instanceof Chunk.NotFoundError) {
+      render.notFound(res)
+    } else {
+      throw err
+    }
+  }
+}
+
 async function getHistory(req, res, next) {
   const projectId = req.swagger.params.project_id.value
   const version = req.swagger.params.version.value
@@ -114,6 +141,36 @@ async function getHistoryBefore(req, res, next) {
     } else {
       throw err
     }
+  }
+}
+
+/**
+ * Get all changes since the beginning of history or since a given version
+ */
+async function getChanges(req, res, next) {
+  const projectId = req.swagger.params.project_id.value
+  const since = req.swagger.params.since.value ?? 0
+
+  if (since < 0) {
+    // Negative values would cause an infinite loop
+    return res.status(400).json({
+      error: `Version out of bounds: ${since}`,
+    })
+  }
+
+  try {
+    const { changes, hasMore } = await chunkStore.getChangesSinceVersion(
+      projectId,
+      since
+    )
+    res.json({ changes: changes.map(change => change.toRaw()), hasMore })
+  } catch (err) {
+    if (err instanceof Chunk.VersionNotFoundError) {
+      return res.status(400).json({
+        error: `Version out of bounds: ${since}`,
+      })
+    }
+    throw err
   }
 }
 
@@ -167,7 +224,9 @@ async function createZip(req, res, next) {
 async function deleteProject(req, res, next) {
   const projectId = req.swagger.params.project_id.value
   const blobStore = new BlobStore(projectId)
+
   await Promise.all([
+    redisBuffer.hardDeleteProject(projectId),
     chunkStore.deleteProjectChunks(projectId),
     blobStore.deleteBlobs(),
   ])
@@ -184,42 +243,151 @@ async function createProjectBlob(req, res, next) {
     const sizeLimit = new StreamSizeLimit(maxUploadSize)
     await pipeline(req, sizeLimit, fs.createWriteStream(tmpPath))
     if (sizeLimit.sizeLimitExceeded) {
+      logger.warn(
+        { projectId, expectedHash, maxUploadSize },
+        'blob exceeds size threshold'
+      )
       return render.requestEntityTooLarge(res)
     }
     const hash = await blobHash.fromFile(tmpPath)
     if (hash !== expectedHash) {
-      logger.debug({ hash, expectedHash }, 'Hash mismatch')
+      logger.warn({ projectId, hash, expectedHash }, 'Hash mismatch')
       return render.conflict(res, 'File hash mismatch')
     }
 
     const blobStore = new BlobStore(projectId)
-    await blobStore.putFile(tmpPath)
+    const newBlob = await blobStore.putFile(tmpPath)
+
+    if (config.has('backupStore')) {
+      try {
+        const { backupBlob } = await import('../../storage/lib/backupBlob.mjs')
+        await backupBlob(projectId, newBlob, tmpPath)
+      } catch (error) {
+        logger.warn({ error, projectId, hash }, 'Failed to backup blob')
+      }
+    }
     res.status(HTTPStatus.CREATED).end()
   })
+}
+
+async function headProjectBlob(req, res) {
+  const projectId = req.swagger.params.project_id.value
+  const hash = req.swagger.params.hash.value
+
+  const blobStore = new BlobStore(projectId)
+  const blob = await blobStore.getBlob(hash)
+  if (blob) {
+    res.set('Content-Length', blob.getByteLength())
+    res.status(200).end()
+  } else {
+    res.status(404).end()
+  }
+}
+
+// Support simple, singular ranges starting from zero only, up-to 2MB = 2_000_000, 7 digits
+const RANGE_HEADER = /^bytes=(\d{1,7})-(\d{1,7})$/
+
+/**
+ * @param {string} header
+ * @return {undefined | {start: number, end: number}}
+ * @private
+ */
+function _getRangeOpts(header) {
+  if (!header) return undefined
+  const match = header.match(RANGE_HEADER)
+  if (match) {
+    const start = parseInt(match[1], 10)
+    const end = parseInt(match[2], 10)
+    return { start, end }
+  }
+  return undefined
 }
 
 async function getProjectBlob(req, res, next) {
   const projectId = req.swagger.params.project_id.value
   const hash = req.swagger.params.hash.value
+  const opts = _getRangeOpts(req.swagger.params.range.value || '')
 
   const blobStore = new BlobStore(projectId)
   logger.debug({ projectId, hash }, 'getProjectBlob started')
   try {
     let stream
     try {
-      stream = await blobStore.getStream(hash)
+      if (opts) {
+        // This is a range request, so we need to set the appropriate headers
+        // Browser caching only works if the total size is known, so we have
+        // to fetch the blob metadata first.
+        const metaData = await blobStore.getBlob(hash)
+        if (metaData) {
+          const blobLength = metaData.getByteLength()
+          if (opts.start > opts.end || opts.start >= blobLength) {
+            return res
+              .status(416) // Requested Range Not Satisfiable
+              .set('Content-Range', `bytes */${blobLength}`)
+              .set('Content-Length', '0')
+              .end()
+          }
+          // Valid range request
+          const actualEnd = Math.min(opts.end, blobLength - 1)
+          const returnedSize = actualEnd - opts.start + 1
+          res.set('Content-Length', returnedSize)
+          res.set(
+            'Content-Range',
+            `bytes ${opts.start}-${actualEnd}/${blobLength}`
+          )
+          res.status(206)
+        }
+      }
+      stream = await blobStore.getStream(hash, opts)
     } catch (err) {
       if (err instanceof Blob.NotFoundError) {
-        return render.notFound(res)
+        logger.warn({ projectId, hash }, 'Blob not found')
+        return res.status(404).end()
       } else {
         throw err
       }
     }
     res.set('Content-Type', 'application/octet-stream')
-    await pipeline(stream, res)
+    try {
+      await pipeline(stream, res)
+    } catch (err) {
+      if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+        res.end()
+      } else {
+        throw OError.tag(err, 'error transferring stream', { projectId, hash })
+      }
+    }
   } finally {
     logger.debug({ projectId, hash }, 'getProjectBlob finished')
   }
+}
+
+async function copyProjectBlob(req, res, next) {
+  const sourceProjectId = req.swagger.params.copyFrom.value
+  const targetProjectId = req.swagger.params.project_id.value
+  const blobHash = req.swagger.params.hash.value
+  // Check that blob exists in source project
+  const sourceBlobStore = new BlobStore(sourceProjectId)
+  const targetBlobStore = new BlobStore(targetProjectId)
+  const [sourceBlob, targetBlob] = await Promise.all([
+    sourceBlobStore.getBlob(blobHash),
+    targetBlobStore.getBlob(blobHash),
+  ])
+  if (!sourceBlob) {
+    logger.warn(
+      { sourceProjectId, targetProjectId, blobHash },
+      'missing source blob when copying across projects'
+    )
+    return render.notFound(res)
+  }
+  // Exit early if the blob exists in the target project.
+  // This will also catch global blobs, which always exist.
+  if (targetBlob) {
+    return res.status(HTTPStatus.NO_CONTENT).end()
+  }
+  // Otherwise, copy blob from source project to target project
+  await sourceBlobStore.copyBlob(sourceBlob, targetProjectId)
+  res.status(HTTPStatus.CREATED).end()
 }
 
 async function getSnapshotAtVersion(projectId, version) {
@@ -229,8 +397,87 @@ async function getSnapshotAtVersion(projectId, version) {
     chunk.getChanges(),
     chunk.getEndVersion() - version
   )
-  snapshot.applyAll(changes)
+
+  if (changes.length > 0) {
+    snapshot.applyAll(changes)
+  } else {
+    // There are no changes in this chunk; we need to look at the previous chunk
+    // to get the snapshot's timestamp
+    let chunkMetadata
+    try {
+      chunkMetadata = await getChunkMetadataForVersion(projectId, version)
+    } catch (err) {
+      if (err instanceof Chunk.VersionNotFoundError) {
+        // The snapshot is the first snapshot of the first chunk, so we can't
+        // find a timestamp. This shouldn't happen often. Ignore the error and
+        // leave the timestamp empty.
+      } else {
+        throw err
+      }
+    }
+
+    snapshot.setTimestamp(chunkMetadata.endTimestamp)
+  }
+
   return snapshot
+}
+
+function sumUpByteLength(blobs) {
+  return blobs.reduce((sum, blob) => sum + blob.getByteLength(), 0)
+}
+
+async function getBlobStats(req, res) {
+  const projectId = req.swagger.params.project_id.value
+  const blobHashes = req.swagger.params.body.value.blobHashes || []
+  for (const hash of blobHashes) {
+    assert.blobHash(hash, 'bad hash')
+  }
+  const blobStore = new BlobStore(projectId)
+  const batchBlobStore = new BatchBlobStore(blobStore)
+  await batchBlobStore.preload(Array.from(blobHashes))
+  const blobs = Array.from(batchBlobStore.blobs.values()).filter(Boolean)
+  const textBlobs = blobs.filter(b => b.getStringLength() !== null)
+  const binaryBlobs = blobs.filter(b => b.getStringLength() === null)
+  const textBlobBytes = sumUpByteLength(textBlobs)
+  const binaryBlobBytes = sumUpByteLength(binaryBlobs)
+  res.json({
+    projectId,
+    textBlobBytes,
+    binaryBlobBytes,
+    totalBytes: textBlobBytes + binaryBlobBytes,
+    nTextBlobs: textBlobs.length,
+    nBinaryBlobs: binaryBlobs.length,
+  })
+}
+
+async function getProjectBlobsStats(req, res) {
+  const projectIds = req.swagger.params.body.value.projectIds
+  const { blobs } = await getProjectBlobsBatch(
+    projectIds.map(id => {
+      if (assert.POSTGRES_ID_REGEXP.test(id)) {
+        return parseInt(id, 10)
+      } else {
+        return id
+      }
+    })
+  )
+  const sizes = []
+  for (const projectId of projectIds) {
+    const projectBlobs = blobs.get(projectId) || []
+    const textBlobs = projectBlobs.filter(b => b.getStringLength() !== null)
+    const binaryBlobs = projectBlobs.filter(b => b.getStringLength() === null)
+    const textBlobBytes = sumUpByteLength(textBlobs)
+    const binaryBlobBytes = sumUpByteLength(binaryBlobs)
+    sizes.push({
+      projectId,
+      textBlobBytes,
+      binaryBlobBytes,
+      totalBytes: textBlobBytes + binaryBlobBytes,
+      nTextBlobs: textBlobs.length,
+      nBinaryBlobs: binaryBlobs.length,
+    })
+  }
+  res.json(sizes)
 }
 
 module.exports = {
@@ -240,11 +487,17 @@ module.exports = {
   getLatestHashedContent: expressify(getLatestHashedContent),
   getLatestPersistedHistory: expressify(getLatestHistory),
   getLatestHistory: expressify(getLatestHistory),
+  getLatestHistoryRaw: expressify(getLatestHistoryRaw),
   getHistory: expressify(getHistory),
   getHistoryBefore: expressify(getHistoryBefore),
+  getChanges: expressify(getChanges),
   getZip: expressify(getZip),
   createZip: expressify(createZip),
   deleteProject: expressify(deleteProject),
   createProjectBlob: expressify(createProjectBlob),
   getProjectBlob: expressify(getProjectBlob),
+  headProjectBlob: expressify(headProjectBlob),
+  copyProjectBlob: expressify(copyProjectBlob),
+  getBlobStats: expressify(getBlobStats),
+  getProjectBlobsStats: expressify(getProjectBlobsStats),
 }

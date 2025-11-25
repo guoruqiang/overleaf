@@ -1,6 +1,6 @@
 import { Interstitial } from '@/shared/components/interstitial'
 import useWaitForI18n from '@/shared/hooks/use-wait-for-i18n'
-import { Button } from 'react-bootstrap'
+import OLButton from '@/shared/components/ol/ol-button'
 import { Trans, useTranslation } from 'react-i18next'
 import EmailInput from './add-email/input'
 import { useState } from 'react'
@@ -8,8 +8,11 @@ import MaterialIcon from '@/shared/components/material-icon'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { ReCaptcha2 } from '../../../../shared/components/recaptcha-2'
 import { useRecaptcha } from '../../../../shared/hooks/use-recaptcha'
+import { useLocation } from '@/shared/hooks/use-location'
 
 import { postJSON } from '../../../../infrastructure/fetch-json'
+import RecaptchaConditions from '@/shared/components/recaptcha-conditions'
+import getMeta from '@/utils/meta'
 
 type AddSecondaryEmailError = {
   name: string
@@ -23,6 +26,7 @@ export function AddSecondaryEmailPrompt() {
   const [error, setError] = useState<AddSecondaryEmailError | undefined>()
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const { ref: recaptchaRef, getReCaptchaToken } = useRecaptcha()
+  const location = useLocation()
 
   if (!isReady) {
     return null
@@ -42,6 +46,10 @@ export function AddSecondaryEmailPrompt() {
       errorName = 'email_already_registered'
     } else if (err?.response?.status === 429) {
       errorName = 'too_many_attempts'
+    } else if (
+      err?.data.errorReason === 'group_domain_capture_and_managed_users_enabled'
+    ) {
+      errorName = 'email_already_registered_under_verified_domain'
     } else if (err?.response?.status === 422) {
       errorName = 'email_must_be_linked_to_institution'
     } else if (err?.data.errorReason === 'cannot_verify_user_not_robot') {
@@ -92,22 +100,12 @@ export function AddSecondaryEmailPrompt() {
             {error && <ErrorMessage error={error} />}
           </div>
 
-          <Button
-            bsStyle={null}
-            disabled={isSubmitting}
-            className="btn-primary"
-            type="submit"
-          >
+          <OLButton disabled={isSubmitting} variant="primary" type="submit">
             {isSubmitting ? <>{t('adding')}&hellip;</> : t('add_email_address')}
-          </Button>
-          <Button
-            bsStyle={null}
-            disabled={isSubmitting}
-            className="btn-secondary"
-            href="/project"
-          >
+          </OLButton>
+          <OLButton disabled={isSubmitting} variant="secondary" href="/project">
             {t('not_now')}
-          </Button>
+          </OLButton>
           <p className="add-secondary-email-learn-more">
             <Trans
               i18nKey="learn_more_about_account"
@@ -119,6 +117,11 @@ export function AddSecondaryEmailPrompt() {
           </p>
         </form>
       </Interstitial>
+      {!getMeta('ol-ExposedSettings').recaptchaDisabled?.addEmail && (
+        <div className="mt-5">
+          <RecaptchaConditions />
+        </div>
+      )}
     </>
   )
 }
@@ -145,6 +148,15 @@ function ErrorMessage({ error }: { error: AddSecondaryEmailError }) {
           /* eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key */
           components={[<a href="/account/settings" />]}
         />
+      )
+      break
+    case 'email_already_registered_under_verified_domain':
+      errorText = (
+        <>
+          Your company email address has been registered under a verified
+          domain, and cannot be added as a secondary email. Please create a new{' '}
+          <strong>Overleaf</strong> account linked to this email address.
+        </>
       )
       break
     case 'cannot_verify_user_not_robot':

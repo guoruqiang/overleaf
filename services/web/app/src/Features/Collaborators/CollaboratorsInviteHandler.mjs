@@ -1,17 +1,16 @@
 import { callbackify } from 'node:util'
-import { ProjectInvite } from '../../models/ProjectInvite.js'
+import { ProjectInvite } from '../../models/ProjectInvite.mjs'
 import logger from '@overleaf/logger'
 import CollaboratorsEmailHandler from './CollaboratorsEmailHandler.mjs'
-import CollaboratorsHandler from './CollaboratorsHandler.js'
-import CollaboratorsInviteGetter from './CollaboratorsInviteGetter.js'
-import CollaboratorsInviteHelper from './CollaboratorsInviteHelper.js'
-import UserGetter from '../User/UserGetter.js'
-import ProjectGetter from '../Project/ProjectGetter.js'
-import NotificationsBuilder from '../Notifications/NotificationsBuilder.js'
-import PrivilegeLevels from '../Authorization/PrivilegeLevels.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
-import LimitationsManager from '../Subscription/LimitationsManager.js'
-import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.js'
+import CollaboratorsHandler from './CollaboratorsHandler.mjs'
+import CollaboratorsInviteGetter from './CollaboratorsInviteGetter.mjs'
+import CollaboratorsInviteHelper from './CollaboratorsInviteHelper.mjs'
+import UserGetter from '../User/UserGetter.mjs'
+import ProjectGetter from '../Project/ProjectGetter.mjs'
+import NotificationsBuilder from '../Notifications/NotificationsBuilder.mjs'
+import PrivilegeLevels from '../Authorization/PrivilegeLevels.mjs'
+import LimitationsManager from '../Subscription/LimitationsManager.mjs'
+import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.mjs'
 import _ from 'lodash'
 
 const CollaboratorsInviteHandler = {
@@ -47,21 +46,28 @@ const CollaboratorsInviteHandler = {
   },
 
   async _sendMessages(projectId, sendingUser, invite) {
+    const { email } = invite
     logger.debug(
-      { projectId, inviteId: invite._id },
+      { projectId, email, inviteId: invite._id },
       'sending notification and email for invite'
     )
-    await CollaboratorsEmailHandler.promises.notifyUserOfProjectInvite(
-      projectId,
-      invite.email,
-      invite,
-      sendingUser
-    )
-    await CollaboratorsInviteHandler._trySendInviteNotification(
-      projectId,
-      sendingUser,
-      invite
-    )
+    const notificationJob =
+      CollaboratorsInviteHandler._trySendInviteNotification(
+        projectId,
+        sendingUser,
+        invite
+      ).catch(err => {
+        logger.err(
+          { err, projectId, email },
+          'error sending notification for invite'
+        )
+      })
+    CollaboratorsEmailHandler.promises
+      .notifyUserOfProjectInvite(projectId, invite.email, invite, sendingUser)
+      .catch(err => {
+        logger.err({ err, projectId, email }, 'error sending email for invite')
+      })
+    await notificationJob
   },
 
   async inviteToProject(projectId, sendingUser, email, privileges) {
@@ -81,12 +87,10 @@ const CollaboratorsInviteHandler = {
     invite = await invite.save()
     invite = invite.toObject()
 
-    // Send email and notification in background
-    CollaboratorsInviteHandler._sendMessages(projectId, sendingUser, {
+    // Send notification and email
+    await CollaboratorsInviteHandler._sendMessages(projectId, sendingUser, {
       ...invite,
       token,
-    }).catch(err => {
-      logger.err({ err, projectId, email }, 'error sending messages for invite')
     })
 
     return _.pick(invite, ['_id', 'email', 'privileges'])
@@ -148,39 +152,52 @@ const CollaboratorsInviteHandler = {
     const project = await ProjectGetter.promises.getProject(projectId, {
       owner_ref: 1,
     })
-    const linkSharingEnforcement =
-      await SplitTestHandler.promises.getAssignmentForUser(
-        project.owner_ref,
-        'link-sharing-enforcement'
+
+    let privilegeLevel = invite.privileges
+    const opts = {}
+    if (
+      [PrivilegeLevels.READ_AND_WRITE, PrivilegeLevels.REVIEW].includes(
+        invite.privileges
       )
-    const pendingEditor =
-      invite.privileges === PrivilegeLevels.READ_AND_WRITE &&
-      linkSharingEnforcement?.variant === 'active' &&
-      !(await LimitationsManager.promises.canAcceptEditCollaboratorInvite(
-        project._id
-      ))
-    if (pendingEditor) {
-      logger.debug(
-        { projectId, userId: user._id },
-        'no collaborator slots available, user added as read only (pending editor)'
-      )
-      await ProjectAuditLogHandler.promises.addEntry(
-        projectId,
-        'editor-moved-to-pending', // controller already logged accept-invite
-        null,
-        null,
-        {
-          userId: user._id.toString(),
+    ) {
+      const allowed =
+        await LimitationsManager.promises.canAcceptEditCollaboratorInvite(
+          project._id
+        )
+      if (!allowed) {
+        privilegeLevel = PrivilegeLevels.READ_ONLY
+        if (invite.privileges === PrivilegeLevels.READ_AND_WRITE) {
+          opts.pendingEditor = true
+        } else if (invite.privileges === PrivilegeLevels.REVIEW) {
+          opts.pendingReviewer = true
         }
-      )
+
+        logger.debug(
+          { projectId, userId: user._id, privileges: invite.privileges },
+          'no collaborator slots available, user added as read only (pending editor)'
+        )
+        await ProjectAuditLogHandler.promises.addEntry(
+          projectId,
+          'editor-moved-to-pending', // controller already logged accept-invite
+          null,
+          null,
+          {
+            userId: user._id.toString(),
+            role:
+              invite.privileges === PrivilegeLevels.REVIEW
+                ? 'reviewer'
+                : 'editor',
+          }
+        )
+      }
     }
 
     await CollaboratorsHandler.promises.addUserIdToProject(
       projectId,
       invite.sendingUserId,
       user._id,
-      pendingEditor ? PrivilegeLevels.READ_ONLY : invite.privileges,
-      { pendingEditor }
+      privilegeLevel,
+      opts
     )
 
     // Remove invite

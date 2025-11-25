@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import bannerImage from '../../../images/inr-banner.png'
 import usePersistedState from '../../../../../shared/hooks/use-persisted-state'
 import * as eventTracking from '../../../../../infrastructure/event-tracking'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLButton from '@/features/ui/components/ol/ol-button'
+} from '@/shared/components/ol/ol-modal'
+import OLButton from '@/shared/components/ol/ol-button'
 
 export default function INRBanner() {
   const { t } = useTranslation()
@@ -87,14 +89,14 @@ export default function INRBanner() {
 
   return (
     <OLModal show={showModal} onHide={handleHide} backdrop="static">
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('inr_discount_modal_title')}</OLModalTitle>
       </OLModalHeader>
       <OLModalBody>
         <p>
           <img
             alt={t('inr_discount_modal_title')}
-            src="/img/subscriptions/inr-discount-modal.png"
+            src={bannerImage}
             style={{
               width: '100%',
             }}

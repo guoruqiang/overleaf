@@ -23,7 +23,7 @@ describe('<LeaveSection />', function () {
     })
 
     fireEvent.click(button)
-    await screen.findByText('Delete Account')
+    await screen.findByText('Delete account')
   })
 
   it('closes modal', async function () {
@@ -35,11 +35,11 @@ describe('<LeaveSection />', function () {
     )
 
     const cancelButton = screen.getByRole('button', {
-      name: 'Close',
+      name: 'Cancel',
     })
 
     fireEvent.click(cancelButton)
 
-    await waitForElementToBeRemoved(() => screen.getByText('Delete Account'))
+    await waitForElementToBeRemoved(() => screen.getByText('Delete account'))
   })
 })

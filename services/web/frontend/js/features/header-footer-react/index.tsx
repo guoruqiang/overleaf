@@ -1,16 +1,23 @@
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import getMeta from '@/utils/meta'
-import DefaultNavbar from '@/features/ui/components/bootstrap-5/navbar/default-navbar'
-import FatFooter from '@/features/ui/components/bootstrap-5/footer/fat-footer'
+import { DefaultNavbarRoot } from '@/shared/components/navbar/default-navbar'
+import Footer from '@/shared/components/footer/footer'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const navbarElement = document.getElementById('navbar-container')
 if (navbarElement) {
   const navbarProps = getMeta('ol-navbar')
-  ReactDOM.render(<DefaultNavbar {...navbarProps} />, navbarElement)
+  const root = createRoot(navbarElement)
+  root.render(
+    <SplitTestProvider>
+      <DefaultNavbarRoot {...navbarProps} />
+    </SplitTestProvider>
+  )
 }
 
-const footerElement = document.getElementById('fat-footer-container')
+const footerElement = document.getElementById('footer-container')
 if (footerElement) {
   const footerProps = getMeta('ol-footer')
-  ReactDOM.render(<FatFooter {...footerProps} />, footerElement)
+  const root = createRoot(footerElement)
+  root.render(<Footer {...footerProps} />)
 }

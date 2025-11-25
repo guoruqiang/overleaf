@@ -1,6 +1,7 @@
 const mongodb = require('mongodb-legacy')
 const OError = require('@overleaf/o-error')
 const Settings = require('@overleaf/settings')
+const MongoUtils = require('@overleaf/mongo-utils')
 const Mongoose = require('./Mongoose')
 const { addConnectionDrainer } = require('./GracefulShutdown')
 
@@ -15,15 +16,6 @@ if (Mongoose.mongo.ObjectId !== mongodb.ObjectId) {
 }
 
 const { ObjectId, ReadPreference } = mongodb
-
-if (
-  typeof global.beforeEach === 'function' &&
-  process.argv.join(' ').match(/unit/)
-) {
-  throw new Error(
-    'It looks like unit tests are running, but you are connecting to Mongo. Missing a stub?'
-  )
-}
 
 const READ_PREFERENCE_PRIMARY = ReadPreference.primary.mode
 const READ_PREFERENCE_SECONDARY = Settings.mongo.hasSecondaries
@@ -42,14 +34,11 @@ addConnectionDrainer('mongodb', async () => {
 const internalDb = mongoClient.db()
 const db = {
   contacts: internalDb.collection('contacts'),
-  deletedFiles: internalDb.collection('deletedFiles'),
   deletedProjects: internalDb.collection('deletedProjects'),
   deletedSubscriptions: internalDb.collection('deletedSubscriptions'),
   deletedUsers: internalDb.collection('deletedUsers'),
   dropboxEntities: internalDb.collection('dropboxEntities'),
   dropboxProjects: internalDb.collection('dropboxProjects'),
-  docHistory: internalDb.collection('docHistory'),
-  docHistoryIndex: internalDb.collection('docHistoryIndex'),
   docSnapshots: internalDb.collection('docSnapshots'),
   docs: internalDb.collection('docs'),
   feedbacks: internalDb.collection('feedbacks'),
@@ -58,18 +47,22 @@ const db = {
   githubSyncUserCredentials: internalDb.collection('githubSyncUserCredentials'),
   globalMetrics: internalDb.collection('globalMetrics'),
   grouppolicies: internalDb.collection('grouppolicies'),
+  groupAuditLogEntries: internalDb.collection('groupAuditLogEntries'),
   institutions: internalDb.collection('institutions'),
   messages: internalDb.collection('messages'),
   migrations: internalDb.collection('migrations'),
   notifications: internalDb.collection('notifications'),
+  emailNotifications: internalDb.collection('emailNotifications'),
+  notificationsPreferences: internalDb.collection('notificationsPreferences'),
   oauthAccessTokens: internalDb.collection('oauthAccessTokens'),
   oauthApplications: internalDb.collection('oauthApplications'),
   oauthAuthorizationCodes: internalDb.collection('oauthAuthorizationCodes'),
   projectAuditLogEntries: internalDb.collection('projectAuditLogEntries'),
   projectHistoryChunks: internalDb.collection('projectHistoryChunks'),
   projectHistoryFailures: internalDb.collection('projectHistoryFailures'),
+  projectHistoryGlobalBlobs: internalDb.collection('projectHistoryGlobalBlobs'),
   projectHistoryLabels: internalDb.collection('projectHistoryLabels'),
-  projectHistoryMetaData: internalDb.collection('projectHistoryMetaData'),
+  projectHistorySizes: internalDb.collection('projectHistorySizes'),
   projectHistorySyncState: internalDb.collection('projectHistorySyncState'),
   projectInvites: internalDb.collection('projectInvites'),
   projects: internalDb.collection('projects'),
@@ -89,6 +82,7 @@ const db = {
   userAuditLogEntries: internalDb.collection('userAuditLogEntries'),
   users: internalDb.collection('users'),
   onboardingDataCollection: internalDb.collection('onboardingDataCollection'),
+  scriptLogs: internalDb.collection('scriptLogs'),
 }
 
 const connectionPromise = mongoClient.connect()
@@ -100,18 +94,12 @@ async function getCollectionNames() {
   return collections.map(collection => collection.collectionName)
 }
 
+async function cleanupTestDatabase() {
+  await MongoUtils.cleanupTestDatabase(mongoClient)
+}
+
 async function dropTestDatabase() {
-  const internalDb = mongoClient.db()
-  const dbName = internalDb.databaseName
-  const env = process.env.NODE_ENV
-
-  if (dbName !== 'test-overleaf' || env !== 'test') {
-    throw new OError(
-      `Refusing to clear database '${dbName}' in environment '${env}'`
-    )
-  }
-
-  await internalDb.dropDatabase()
+  await MongoUtils.dropTestDatabase(mongoClient)
 }
 
 /**
@@ -122,12 +110,18 @@ async function getCollectionInternal(name) {
   return internalDb.collection(name)
 }
 
+async function waitForDb() {
+  await connectionPromise
+}
+
 module.exports = {
   db,
   ObjectId,
   connectionPromise,
+  waitForDb,
   getCollectionNames,
   getCollectionInternal,
+  cleanupTestDatabase,
   dropTestDatabase,
   READ_PREFERENCE_PRIMARY,
   READ_PREFERENCE_SECONDARY,

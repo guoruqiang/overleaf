@@ -13,10 +13,12 @@ import {
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLFormControl from '@/features/ui/components/ol/ol-form-control'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLForm from '@/features/ui/components/ol/ol-form'
+} from '@/shared/components/ol/ol-modal'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLForm from '@/shared/components/ol/ol-form'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
 
 type NewProjectData = {
   project_id: string
@@ -38,6 +40,7 @@ function ModalContentNewProjectForm({ onCancel, template = 'none' }: Props) {
   const { t } = useTranslation()
   const { autoFocusedRef } = useRefWithAutoFocus<HTMLInputElement>()
   const [projectName, setProjectName] = useState('')
+  const [redirecting, setRedirecting] = useState(false)
   const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
   const location = useLocation()
 
@@ -52,6 +55,8 @@ function ModalContentNewProjectForm({ onCancel, template = 'none' }: Props) {
     )
       .then(data => {
         if (data.project_id) {
+          // prevents clicking on create again between async load of next page and pending state being finished
+          setRedirecting(true)
           location.assign(`/project/${data.project_id}`)
         }
       })
@@ -69,7 +74,7 @@ function ModalContentNewProjectForm({ onCancel, template = 'none' }: Props) {
 
   return (
     <>
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('new_project')}</OLModalTitle>
       </OLModalHeader>
 
@@ -83,13 +88,15 @@ function ModalContentNewProjectForm({ onCancel, template = 'none' }: Props) {
           </div>
         )}
         <OLForm onSubmit={handleSubmit}>
-          <OLFormControl
-            type="text"
-            ref={autoFocusedRef}
-            placeholder={t('project_name')}
-            onChange={handleChangeName}
-            value={projectName}
-          />
+          <OLFormGroup controlId="project-name">
+            <OLFormLabel>{t('project_name')}</OLFormLabel>
+            <OLFormControl
+              type="text"
+              ref={autoFocusedRef}
+              onChange={handleChangeName}
+              value={projectName}
+            />
+          </OLFormGroup>
         </OLForm>
       </OLModalBody>
 
@@ -100,11 +107,9 @@ function ModalContentNewProjectForm({ onCancel, template = 'none' }: Props) {
         <OLButton
           variant="primary"
           onClick={createNewProject}
-          disabled={projectName === '' || isLoading}
+          disabled={projectName === '' || isLoading || redirecting}
           isLoading={isLoading}
-          bs3Props={{
-            loading: isLoading ? `${t('creating')}…` : t('create'),
-          }}
+          loadingLabel={t('creating')}
         >
           {t('create')}
         </OLButton>

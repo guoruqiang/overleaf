@@ -11,15 +11,16 @@ import getMeta from '../../../../utils/meta'
 import { ssoAvailableForInstitution } from '../../utils/sso'
 import ReconfirmationInfo from './reconfirmation-info'
 import { useLocation } from '../../../../shared/hooks/use-location'
-import OLRow from '@/features/ui/components/ol/ol-row'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLRow from '@/shared/components/ol/ol-row'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLButton from '@/shared/components/ol/ol-button'
 
 type EmailsRowProps = {
   userEmailData: UserEmailData
+  primary?: UserEmailData
 }
 
-function EmailsRow({ userEmailData }: EmailsRowProps) {
+function EmailsRow({ userEmailData, primary }: EmailsRowProps) {
   const hasSSOAffiliation = Boolean(
     userEmailData.affiliation &&
       ssoAvailableForInstitution(userEmailData.affiliation.institution)
@@ -27,7 +28,7 @@ function EmailsRow({ userEmailData }: EmailsRowProps) {
 
   return (
     <>
-      <OLRow>
+      <OLRow data-testid="email-row">
         <OLCol lg={4}>
           <EmailCell>
             <Email userEmailData={userEmailData} />
@@ -42,7 +43,7 @@ function EmailsRow({ userEmailData }: EmailsRowProps) {
         </OLCol>
         <OLCol lg={3}>
           <EmailCell className="text-lg-end">
-            <Actions userEmailData={userEmailData} />
+            <Actions userEmailData={userEmailData} primary={primary} />
           </EmailCell>
         </OLCol>
       </OLRow>
@@ -107,6 +108,15 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
         </OLCol>
       </OLRow>
     )
+  }
+
+  const domainAlsoForGroupWithDomainCapture =
+    userEmailData?.affiliation?.group?.domainCaptureEnabled
+
+  if (domainAlsoForGroupWithDomainCapture) {
+    // user is not linked via Commons and should link via groups
+    // do not show UI to link to Commons
+    return null
   }
 
   return (

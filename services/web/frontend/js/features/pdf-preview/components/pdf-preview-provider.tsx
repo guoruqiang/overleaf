@@ -12,13 +12,15 @@ export const usePdfPreviewContext = () => {
   const context = useContext(PdfPreviewContext)
   if (!context) {
     throw new Error(
-      'usePdfPreviewContext is only avalable inside PdfPreviewProvider'
+      'usePdfPreviewContext is only available inside PdfPreviewProvider'
     )
   }
   return context
 }
 
-export const PdfPreviewProvider: FC = ({ children }) => {
+export const PdfPreviewProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const [loadingError, setLoadingError] = useState(false)
 
   const value = useMemo(

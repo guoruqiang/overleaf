@@ -16,10 +16,10 @@ import SettingsPdfViewer from './settings/settings-pdf-viewer'
 import SettingsSpellCheckLanguage from './settings/settings-spell-check-language'
 import SettingsSyntaxValidation from './settings/settings-syntax-validation'
 import SettingsMathPreview from './settings/settings-math-preview'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { ElementType } from 'react'
-import OLForm from '@/features/ui/components/ol/ol-form'
+import OLForm from '@/shared/components/ol/ol-form'
+import SettingsNewEditor from './settings/settings-new-editor'
 
 const moduleSettings: Array<{
   import: { default: ElementType }
@@ -29,7 +29,6 @@ const moduleSettings: Array<{
 export default function SettingsMenu() {
   const { t } = useTranslation()
   const anonymous = getMeta('ol-anonymous')
-  const enableMathPreview = useFeatureFlag('math-preview')
 
   if (anonymous) {
     return null
@@ -50,7 +49,7 @@ export default function SettingsMenu() {
         <SettingsAutoComplete />
         <SettingsAutoCloseBrackets />
         <SettingsSyntaxValidation />
-        {enableMathPreview && <SettingsMathPreview />}
+        <SettingsMathPreview />
         <SettingsEditorTheme />
         <SettingsOverallTheme />
         <SettingsKeybindings />
@@ -58,6 +57,7 @@ export default function SettingsMenu() {
         <SettingsFontFamily />
         <SettingsLineHeight />
         <SettingsPdfViewer />
+        <SettingsNewEditor />
       </OLForm>
     </>
   )

@@ -12,17 +12,17 @@ export const ssoAvailableForDomain = (
   if (domain.university.ssoEnabled) {
     return true
   }
+
+  if (domain.group?.ssoConfig?.enabled) {
+    return true
+  }
+
   return Boolean(hasSamlBeta && domain.university.ssoBeta)
 }
 
 export const ssoAvailableForInstitution = (institution: Institution | null) => {
   const { hasSamlBeta, hasSamlFeature } = getMeta('ol-ExposedSettings')
-  if (
-    !hasSamlFeature ||
-    !institution ||
-    !institution.confirmed ||
-    !institution.isUniversity
-  ) {
+  if (!hasSamlFeature || !institution || !institution.confirmed) {
     return false
   }
   if (institution.ssoEnabled) {

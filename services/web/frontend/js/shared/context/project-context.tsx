@@ -1,9 +1,31 @@
-import { FC, createContext, useContext, useMemo } from 'react'
-import useScopeValue from '../hooks/use-scope-value'
+import {
+  FC,
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useCallback,
+} from 'react'
 import getMeta from '@/utils/meta'
-import { ProjectContextValue } from './types/project-context'
+import { ProjectUpdate, ProjectMetadata } from './types/project-metadata'
+import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
+import { Tag } from '../../../../app/src/Features/Tags/types'
 
-const ProjectContext = createContext<ProjectContextValue | undefined>(undefined)
+type ProjectContextValue = {
+  projectId: ProjectMetadata['_id']
+  project: ProjectMetadata | null
+  joinProject: (project: ProjectMetadata) => void
+  updateProject: (projectUpdate: ProjectUpdate) => void
+  joinedOnce: boolean
+  projectSnapshot: ProjectSnapshot
+  tags: Tag[]
+  features: ProjectMetadata['features']
+  name: ProjectMetadata['name']
+}
+
+export const ProjectContext = createContext<ProjectContextValue | undefined>(
+  undefined
+)
 
 export function useProjectContext() {
   const context = useContext(ProjectContext)
@@ -17,31 +39,33 @@ export function useProjectContext() {
   return context
 }
 
-// when the provider is created the project is still not added to the Angular
-// scope. A few props are populated to prevent errors in existing React
-// components
-const projectFallback = {
-  _id: getMeta('ol-project_id'),
-  name: '',
-  features: {},
-}
+export const ProjectProvider: FC<React.PropsWithChildren> = ({ children }) => {
+  const [joinedOnce, setJoinedOnce] = useState(false)
+  const [project, setProject] = useState<ProjectMetadata | null>(null)
 
-export const ProjectProvider: FC = ({ children }) => {
-  const [project] = useScopeValue('project')
+  // Expose some project properties with fallbacks for convenience
+  const projectId = project ? project._id : getMeta('ol-project_id')
+  const name = project ? project.name : ''
+  const features = project ? project.features : {}
 
-  const {
-    _id,
-    compiler,
-    name,
-    rootDoc_id: rootDocId,
-    members,
-    invites,
-    features,
-    publicAccesLevel: publicAccessLevel,
-    owner,
-    trackChangesState,
-    mainBibliographyDoc_id: mainBibliographyDocId,
-  } = project || projectFallback
+  const joinProject = useCallback((projectData: ProjectMetadata) => {
+    setProject(projectData)
+    setJoinedOnce(true)
+  }, [])
+
+  const updateProject = useCallback((projectUpdateData: ProjectUpdate) => {
+    setProject(projectData => {
+      // Only perform the update if `project` is already set, otherwise we could
+      // end up with an incomplete project object
+      if (!projectData) {
+        throw new Error('Project not initialized. Use joinProject first.')
+      }
+
+      return Object.assign({}, projectData, projectUpdateData)
+    })
+  }, [])
+
+  const [projectSnapshot] = useState(() => new ProjectSnapshot(projectId))
 
   const tags = useMemo(
     () =>
@@ -51,35 +75,17 @@ export const ProjectProvider: FC = ({ children }) => {
     []
   )
 
-  const value = useMemo(() => {
-    return {
-      _id,
-      compiler,
-      name,
-      rootDocId,
-      members,
-      invites,
-      features,
-      publicAccessLevel,
-      owner,
-      tags,
-      trackChangesState,
-      mainBibliographyDocId,
-    }
-  }, [
-    _id,
-    compiler,
-    name,
-    rootDocId,
-    members,
-    invites,
-    features,
-    publicAccessLevel,
-    owner,
+  const value = {
+    projectId,
+    project,
+    joinProject,
+    updateProject,
+    joinedOnce,
+    projectSnapshot,
     tags,
-    trackChangesState,
-    mainBibliographyDocId,
-  ])
+    features,
+    name,
+  }
 
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

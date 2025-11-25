@@ -1,13 +1,16 @@
 // Needed since eslint gets confused by mocha-each
 /* eslint-disable mocha/prefer-arrow-callback */
-import '../../../helpers/bootstrap-3'
 import { FC } from 'react'
-import { EditorProviders } from '../../../helpers/editor-providers'
+import {
+  EditorProviders,
+  makeEditorPropertiesProvider,
+} from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
 import forEach from 'mocha-each'
 import { FileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import { TestContainer } from '../helpers/test-container'
+import { base64image } from '../fixtures/image'
 
 describe('<CodeMirrorEditor/> in Visual mode', function () {
   beforeEach(function () {
@@ -20,9 +23,10 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     const content = '\n'.repeat(3)
 
     const scope = mockScope(content)
-    scope.editor.showVisual = true
 
-    const FileTreePathProvider: FC = ({ children }) => (
+    const FileTreePathProvider: FC<React.PropsWithChildren> = ({
+      children,
+    }) => (
       <FileTreePathContext.Provider
         value={{
           dirname: cy.stub(),
@@ -31,7 +35,16 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
           previewByPath: cy
             .stub()
             .as('previewByPath')
-            .callsFake(path => ({ url: path, extension: 'png' })),
+            .callsFake(path =>
+              path === 'valid.png'
+                ? { url: base64image, extension: 'png' }
+                : path === 'graphic.eps'
+                  ? {
+                      url: 'data:application/postscript,0 0 moveto (hello) show',
+                      extension: 'eps',
+                    }
+                  : null
+            ),
         }}
       >
         {children}
@@ -40,7 +53,16 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
 
     cy.mount(
       <TestContainer>
-        <EditorProviders scope={scope} providers={{ FileTreePathProvider }}>
+        <EditorProviders
+          scope={scope}
+          providers={{
+            FileTreePathProvider,
+            EditorPropertiesProvider: makeEditorPropertiesProvider({
+              showVisual: true,
+              showSymbolPalette: false,
+            }),
+          }}
+        >
           <CodemirrorEditor />
         </EditorProviders>
       </TestContainer>
@@ -53,7 +75,7 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     cy.get('.cm-line').eq(1).as('second-line')
     cy.get('.cm-line').eq(2).as('third-line')
     cy.get('.cm-line').eq(3).as('fourth-line')
-    cy.get('.ol-cm-toolbar [aria-label="Format Bold"]').as('toolbar-bold')
+    cy.get('.ol-cm-toolbar [aria-label="Bold"]').as('toolbar-bold')
 
     cy.get('@first-line').click()
   })
@@ -244,11 +266,11 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     })
 
     it('loads figures', function () {
-      cy.get('@third-line').type('path/to/image')
+      cy.get('@third-line').type('valid.png')
 
       cy.get('@third-line').should(
         'contain.text',
-        '    \\includegraphics[width=0.5\\linewidth]{path/to/image}'
+        '    \\includegraphics[width=0.5\\linewidth]{valid.png}'
       )
 
       // move the cursor out of the figure
@@ -257,10 +279,56 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
       // Should be removed from dom when line is hidden
       cy.get('.cm-content').should(
         'not.contain.text',
-        '\\includegraphics[width=0.5\\linewidth]{path/to/image}'
+        '\\includegraphics[width=0.5\\linewidth]{valid.png}'
       )
 
-      cy.get('img.ol-cm-graphics').should('have.attr', 'src', 'path/to/image')
+      cy.get('img.ol-cm-graphics').should('have.attr', 'src', base64image)
+    })
+
+    it('shows error state for figures we cannot render', function () {
+      cy.get('@third-line').type('graphic.eps')
+
+      cy.get('@third-line').should(
+        'contain.text',
+        '    \\includegraphics[width=0.5\\linewidth]{graphic.eps}'
+      )
+
+      // move the cursor out of the figure
+      cy.get('@third-line').type('{DownArrow}{DownArrow}{DownArrow}{DownArrow}')
+
+      // Should be removed from dom when line is hidden
+      cy.get('.cm-content').should(
+        'not.contain.text',
+        '\\includegraphics[width=0.5\\linewidth]{graphic.eps}'
+      )
+
+      // Should show error state
+      cy.get('div.ol-cm-graphics-loading-error').should('be.visible')
+      cy.findByText(
+        /The Visual Editor can’t preview this type of image file./
+      ).should('be.visible')
+    })
+
+    it('shows error state for missing figures', function () {
+      cy.get('@third-line').type('missing.png')
+
+      cy.get('@third-line').should(
+        'contain.text',
+        '    \\includegraphics[width=0.5\\linewidth]{missing.png}'
+      )
+
+      // move the cursor out of the figure
+      cy.get('@third-line').type('{DownArrow}{DownArrow}{DownArrow}{DownArrow}')
+
+      // Should be removed from dom when line is hidden
+      cy.get('.cm-content').should(
+        'not.contain.text',
+        '\\includegraphics[width=0.5\\linewidth]{missing.png}'
+      )
+
+      // Should show error state
+      cy.get('div.ol-cm-graphics-error').should('be.visible')
+      cy.findByText(/missing.png/).should('be.visible')
     })
 
     it('marks lines as figure environments', function () {

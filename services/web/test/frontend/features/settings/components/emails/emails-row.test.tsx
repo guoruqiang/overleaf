@@ -37,7 +37,7 @@ describe('<EmailsRow/>', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   describe('with unaffiliated email data', function () {
@@ -48,7 +48,7 @@ describe('<EmailsRow/>', function () {
 
     it('renders actions', function () {
       renderEmailsRow(unconfirmedUserData)
-      screen.getByRole('button', { name: 'Make Primary' })
+      screen.getByRole('button', { name: 'Make primary' })
     })
   })
 
@@ -86,9 +86,9 @@ describe('<EmailsRow/>', function () {
 
     describe('when the email is not yet linked to the institution', function () {
       beforeEach(async function () {
-        fetchMock.reset()
+        fetchMock.removeRoutes().clearHistory()
         fetchMock.get(/\/user\/emails/, [affiliatedEmail, unconfirmedUserData])
-        await fetchMock.flush(true)
+        await fetchMock.callHistory.flush(true)
       })
 
       it('prompts the user to link to their institutional account', function () {
@@ -96,16 +96,16 @@ describe('<EmailsRow/>', function () {
         getByTextContent(
           'You can now link your Overleaf account to your Overleaf institutional account.'
         )
-        screen.getByRole('button', { name: 'Link Accounts' })
+        screen.getByRole('button', { name: 'Link accounts' })
       })
     })
 
     describe('when the email is already linked to the institution', function () {
       beforeEach(async function () {
         affiliatedEmail.samlProviderId = '1'
-        fetchMock.reset()
+        fetchMock.removeRoutes().clearHistory()
         fetchMock.get(/\/user\/emails/, [affiliatedEmail, unconfirmedUserData])
-        await fetchMock.flush(true)
+        await fetchMock.callHistory.flush(true)
       })
 
       it('prompts the user to login using their institutional account', function () {
@@ -113,7 +113,47 @@ describe('<EmailsRow/>', function () {
         getByTextContent(
           'You can log in to Overleaf through your Overleaf institutional login.'
         )
-        expect(screen.queryByRole('button', { name: 'Link Accounts' })).to.be
+        expect(screen.queryByRole('button', { name: 'Link accounts' })).to.be
+          .null
+      })
+    })
+
+    describe('and domain capture is also on for group and Commons SSO also enabled', function () {
+      // scenario of a Commons account migrating to a group account
+      let affiliatedEmailWithDomainCaptureAndCommons: UserEmailData & {
+        affiliation: Affiliation
+      }
+      beforeEach(async function () {
+        fetchMock.removeRoutes().clearHistory()
+
+        affiliatedEmailWithDomainCaptureAndCommons = cloneDeep(affiliatedEmail)
+        affiliatedEmailWithDomainCaptureAndCommons.affiliation.group = {
+          _id: 'grou123',
+          domainCaptureEnabled: true,
+          managedUsersEnabled: true,
+        }
+
+        await fetchMock.callHistory.flush(true)
+      })
+
+      it('does not prompt the user to link to their institutional account', function () {
+        renderEmailsRow(affiliatedEmailWithDomainCaptureAndCommons)
+        expect(() =>
+          getByTextContent(
+            'You can now link your Overleaf account to your Overleaf institutional account.'
+          )
+        ).to.throw('Unable to find an element with the text')
+        expect(screen.queryByRole('button', { name: 'Link accounts' })).to.be
+          .null
+      })
+
+      it('still shows users can log in via Commons SSO if already linked', function () {
+        affiliatedEmailWithDomainCaptureAndCommons.samlProviderId = '1'
+        renderEmailsRow(affiliatedEmailWithDomainCaptureAndCommons)
+        getByTextContent(
+          'You can log in to Overleaf through your Overleaf institutional login.'
+        )
+        expect(screen.queryByRole('button', { name: 'Link accounts' })).to.be
           .null
       })
     })

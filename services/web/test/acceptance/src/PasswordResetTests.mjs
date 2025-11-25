@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import UserHelper from './helpers/UserHelper.js'
+import UserHelper from './helpers/UserHelper.mjs'
 import { db } from '../../../app/src/infrastructure/mongodb.js'
 
 describe('PasswordReset', function () {
@@ -203,7 +203,7 @@ describe('PasswordReset', function () {
           message: {
             type: 'error',
             key: 'password-contains-email',
-            text: 'Password cannot contain parts of email address',
+            text: 'Password cannot contain parts of email address.',
           },
         })
       })
@@ -230,7 +230,7 @@ describe('PasswordReset', function () {
           message: {
             type: 'error',
             key: 'password-too-similar',
-            text: 'Password is too similar to parts of email address',
+            text: 'Password is too similar to parts of email address.',
           },
         })
       })
@@ -448,6 +448,55 @@ describe('PasswordReset', function () {
         }),
       })
       expect(response.status).to.equal(400)
+    })
+  })
+
+  describe('reconfirm flag', function () {
+    const getReconfirmAuditLogEntry = async function (email) {
+      const userHelper = await UserHelper.getUser({ email })
+      const auditLog = userHelper.getAuditLogWithoutNoise()
+      return auditLog.find(
+        entry => entry.operation === 'must-reset-password-unset'
+      )
+    }
+    it('should add audit log entry when flag changes from true to false', async function () {
+      // Set must_reconfirm to true
+      await db.users.updateOne(
+        { _id: user._id },
+        { $set: { must_reconfirm: true } }
+      )
+      response = await userHelper.fetch('/user/password/set', {
+        method: 'POST',
+        body: new URLSearchParams({
+          passwordResetToken: token,
+          password: 'a-password',
+        }),
+      })
+      expect(response.status).to.equal(200)
+
+      const reconfirmEntry = await getReconfirmAuditLogEntry(email)
+      expect(reconfirmEntry).to.exist
+      expect(reconfirmEntry.ipAddress).to.equal('127.0.0.1')
+      expect(reconfirmEntry.timestamp).to.exist
+    })
+
+    it('should not add audit log entry when flag was already false', async function () {
+      await db.users.updateOne(
+        { _id: user._id },
+        { $set: { must_reconfirm: false } }
+      )
+
+      response = await userHelper.fetch('/user/password/set', {
+        method: 'POST',
+        body: new URLSearchParams({
+          passwordResetToken: token,
+          password: 'a-password',
+        }),
+      })
+      expect(response.status).to.equal(200)
+
+      const reconfirmEntry = await getReconfirmAuditLogEntry(email)
+      expect(reconfirmEntry).to.not.exist
     })
   })
 })

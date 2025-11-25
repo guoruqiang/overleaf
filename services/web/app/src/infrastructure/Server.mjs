@@ -2,43 +2,44 @@ import express from 'express'
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import metrics from '@overleaf/metrics'
-import Validation from './Validation.js'
-import csp from './CSP.js'
+import csp, { removeCSPHeaders } from './CSP.mjs'
 import Router from '../router.mjs'
 import helmet from 'helmet'
-import UserSessionsRedis from '../Features/User/UserSessionsRedis.js'
-import Csrf from './Csrf.js'
+import UserSessionsRedis from '../Features/User/UserSessionsRedis.mjs'
+import Csrf from './Csrf.mjs'
 import HttpPermissionsPolicyMiddleware from './HttpPermissionsPolicy.js'
-import SessionAutostartMiddleware from './SessionAutostartMiddleware.js'
-import AnalyticsManager from '../Features/Analytics/AnalyticsManager.js'
+import SessionAutostartMiddleware from './SessionAutostartMiddleware.mjs'
+import AnalyticsManager from '../Features/Analytics/AnalyticsManager.mjs'
 import session from 'express-session'
-import CookieMetrics from './CookieMetrics.js'
-import CustomSessionStore from './CustomSessionStore.js'
-import bodyParser from './BodyParserWrapper.js'
+import CookieMetrics from './CookieMetrics.mjs'
+import CustomSessionStore from './CustomSessionStore.mjs'
+import bodyParser from './BodyParserWrapper.mjs'
 import methodOverride from 'method-override'
 import cookieParser from 'cookie-parser'
 import bearerTokenMiddleware from 'express-bearer-token'
 import passport from 'passport'
 import { Strategy as LocalStrategy } from 'passport-local'
 import ReferalConnect from '../Features/Referal/ReferalConnect.mjs'
-import RedirectManager from './RedirectManager.js'
-import translations from './Translations.js'
+import RedirectManager from './RedirectManager.mjs'
+import translations from './Translations.mjs'
 import Views from './Views.js'
-import Features from './Features.js'
-import ErrorController from '../Features/Errors/ErrorController.js'
-import HttpErrorHandler from '../Features/Errors/HttpErrorHandler.js'
-import UserSessionsManager from '../Features/User/UserSessionsManager.js'
-import AuthenticationController from '../Features/Authentication/AuthenticationController.js'
-import SessionManager from '../Features/Authentication/SessionManager.js'
-import { hasAdminAccess } from '../Features/Helpers/AdminAuthorizationHelper.js'
+import Features from './Features.mjs'
+import ErrorController from '../Features/Errors/ErrorController.mjs'
+import HttpErrorHandler from '../Features/Errors/HttpErrorHandler.mjs'
+import UserSessionsManager from '../Features/User/UserSessionsManager.mjs'
+import AuthenticationController from '../Features/Authentication/AuthenticationController.mjs'
+import SessionManager from '../Features/Authentication/SessionManager.mjs'
+import AdminAuthorizationHelper from '../Features/Helpers/AdminAuthorizationHelper.mjs'
 import Modules from './Modules.js'
-import expressLocals from './ExpressLocals.js'
+import expressLocals from './ExpressLocals.mjs'
 import noCache from 'nocache'
 import os from 'node:os'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import serveStaticWrapper from './ServeStaticWrapper.mjs'
+import { handleValidationError } from '@overleaf/validation-tools'
 
+const { hasAdminAccess } = AdminAuthorizationHelper
 const sessionsRedisClient = UserSessionsRedis.client()
 
 const oneDayInMilliseconds = 86400000
@@ -125,7 +126,7 @@ webRouter.use(
     fileURLToPath(new URL('../../../public', import.meta.url)),
     {
       maxAge: STATIC_CACHE_AGE,
-      setHeaders: csp.removeCSPHeaders,
+      setHeaders: removeCSPHeaders,
     }
   )
 )
@@ -134,7 +135,7 @@ app.set('views', fileURLToPath(new URL('../../views', import.meta.url)))
 app.set('view engine', 'pug')
 
 if (Settings.enabledServices.includes('web')) {
-  if (app.get('env') !== 'development') {
+  if (Settings.enablePugCache || app.get('env') !== 'development') {
     logger.debug('enabling view cache for production or acceptance tests')
     app.enable('view cache')
   }
@@ -257,7 +258,7 @@ if (Settings.cookieRollingSession) {
 }
 
 webRouter.use(ReferalConnect.use)
-expressLocals(webRouter, privateApiRouter, publicApiRouter)
+await expressLocals(webRouter, privateApiRouter, publicApiRouter)
 webRouter.use(SessionAutostartMiddleware.invokeCallbackMiddleware)
 
 webRouter.use(function checkIfSiteClosed(req, res, next) {
@@ -355,23 +356,27 @@ const server = http.createServer(app)
 if (Settings.enabledServices.includes('api')) {
   logger.debug({}, 'providing api router')
   app.use(privateApiRouter)
-  app.use(Validation.errorMiddleware)
+  app.use(handleValidationError)
   app.use(ErrorController.handleApiError)
 }
 
 if (Settings.enabledServices.includes('web')) {
   logger.debug({}, 'providing web router')
   app.use(publicApiRouter) // public API goes with web router for public access
-  app.use(Validation.errorMiddleware)
+  app.use(handleValidationError)
   app.use(ErrorController.handleApiError)
   app.use(webRouter)
-  app.use(Validation.errorMiddleware)
+  app.use(handleValidationError)
   app.use(ErrorController.handleError)
 }
 
 metrics.injectMetricsRoute(webRouter)
 metrics.injectMetricsRoute(privateApiRouter)
 
+const beforeRouterInitialize = performance.now()
 await Router.initialize(webRouter, privateApiRouter, publicApiRouter)
+metrics.gauge('web_startup', performance.now() - beforeRouterInitialize, 1, {
+  path: 'Router.initialize',
+})
 
 export default { app, server }

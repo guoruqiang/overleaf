@@ -17,8 +17,11 @@ import { isValidEmail } from '../../../../shared/utils/email'
 import getMeta from '../../../../utils/meta'
 import { ReCaptcha2 } from '../../../../shared/components/recaptcha-2'
 import { useRecaptcha } from '../../../../shared/hooks/use-recaptcha'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLCol from '@/shared/components/ol/ol-col'
+import { ConfirmEmailForm } from '@/features/settings/components/emails/confirm-email-form'
+import RecaptchaConditions from '@/shared/components/recaptcha-conditions'
+import SsoLinkingInfoGroup from './add-email/sso-linking-info-group'
+import Notification from '@/shared/components/notification'
 
 function AddEmail() {
   const { t } = useTranslation()
@@ -26,6 +29,7 @@ function AddEmail() {
     () => window.location.hash === '#add-email'
   )
   const [newEmail, setNewEmail] = useState('')
+  const [confirmationStep, setConfirmationStep] = useState(false)
   const [newEmailMatchedDomain, setNewEmailMatchedDomain] =
     useState<DomainInfo | null>(null)
   const [countryCode, setCountryCode] = useState<CountryCode | null>(null)
@@ -90,7 +94,7 @@ function AddEmail() {
     runAsync(
       (async () => {
         const token = await getReCaptchaToken()
-        await postJSON('/user/emails', {
+        await postJSON('/user/emails/secondary', {
           body: {
             email: newEmail,
             ...knownUniversityData,
@@ -101,9 +105,26 @@ function AddEmail() {
       })()
     )
       .then(() => {
-        getEmails()
+        setConfirmationStep(true)
       })
       .catch(() => {})
+  }
+
+  if (confirmationStep) {
+    return (
+      <ConfirmEmailForm
+        confirmationEndpoint="/user/emails/confirm-secondary"
+        resendEndpoint="/user/emails/resend-secondary-confirmation"
+        flow="secondary"
+        email={newEmail}
+        onSuccessfulConfirmation={getEmails}
+        interstitial={false}
+        onCancel={() => {
+          setConfirmationStep(false)
+          setIsFormVisible(false)
+        }}
+      />
+    )
   }
 
   if (!isFormVisible) {
@@ -134,17 +155,21 @@ function AddEmail() {
 
   const InputComponent = (
     <>
-      <label
-        htmlFor="affiliations-email"
-        className={bsVersion({ bs5: 'visually-hidden', bs3: 'sr-only' })}
-      >
-        {t('email')}
-      </label>
+      <label htmlFor="affiliations-email">{t('email')}</label>
       <Input
         onChange={handleEmailChange}
         handleAddNewEmail={handleAddNewEmail}
       />
     </>
+  )
+  const recaptchaConditions = (
+    <OLCol>
+      <Cell>
+        <div className="affiliations-table-cell-tabbed">
+          <RecaptchaConditions />
+        </div>
+      </Cell>
+    </OLCol>
   )
 
   if (!isValidEmail(newEmail)) {
@@ -165,6 +190,7 @@ function AddEmail() {
               <AddNewEmailBtn email={newEmail} disabled />
             </Cell>
           </OLCol>
+          {recaptchaConditions}
         </Layout>
       </form>
     )
@@ -214,17 +240,70 @@ function AddEmail() {
           <OLCol lg={12}>
             <Cell>
               <div className="affiliations-table-cell-tabbed">
-                <SsoLinkingInfo
+                <AddEmailViaSSO
                   email={newEmail}
-                  domainInfo={newEmailMatchedDomain as DomainInfo}
+                  domainInfo={newEmailMatchedDomain}
+                  userInstitutions={state.data.linkedInstitutionIds}
                 />
               </div>
             </Cell>
           </OLCol>
         )}
+        {recaptchaConditions}
       </Layout>
     </form>
   )
+}
+
+function AddEmailViaSSO({
+  email,
+  domainInfo,
+  userInstitutions,
+}: {
+  email: string
+  domainInfo: DomainInfo
+  userInstitutions: string[]
+}) {
+  if (domainInfo.university.ssoEnabled) {
+    // Check if the user has already linked this institution
+    if (userInstitutions.includes(domainInfo.university.id.toString())) {
+      return (
+        <Notification
+          type="error"
+          ariaLive="polite"
+          content={
+            <>
+              This institution is already linked with your account via another
+              email address.
+            </>
+          }
+        />
+      )
+    }
+    return <SsoLinkingInfo email={email} domainInfo={domainInfo} />
+  } else if (
+    domainInfo.group?.domainCaptureEnabled &&
+    domainInfo.group?.managedUsersEnabled
+  ) {
+    return (
+      <Notification
+        type="error"
+        ariaLive="polite"
+        content={
+          <>
+            Your company email address has been registered under a verified
+            domain, and cannot be added as a secondary email. Please create a
+            new <strong>Overleaf</strong> account linked to this email address.
+          </>
+        }
+      />
+    )
+  } else if (
+    domainInfo.group?.domainCaptureEnabled &&
+    domainInfo.group?.ssoConfig?.enabled
+  ) {
+    return <SsoLinkingInfoGroup domainInfo={domainInfo} />
+  }
 }
 
 export default AddEmail

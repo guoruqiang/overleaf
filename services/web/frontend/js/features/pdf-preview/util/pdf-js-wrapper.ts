@@ -8,6 +8,8 @@ import {
   LinkTarget,
 } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import 'pdfjs-dist/web/pdf_viewer.css'
+import browser from '@/features/source-editor/extensions/browser'
+import { PDFFile } from '@ol-types/compile'
 
 const DEFAULT_RANGE_CHUNK_SIZE = 128 * 1024 // 128K chunks
 
@@ -36,7 +38,7 @@ export default class PDFJSWrapper {
       eventBus: this.eventBus,
       imageResourcesPath,
       linkService: this.linkService,
-      maxCanvasPixels: 8192 * 8192, // default is 4096 * 4096, increased for better resolution at high zoom levels
+      maxCanvasPixels: browser.safari ? 4096 * 4096 : 8192 * 8192, // default is 4096 * 4096, increased for better resolution at high zoom levels (but not in Safari, which struggles with large canvases)
       annotationMode: PDFJS.AnnotationMode.ENABLE, // enable annotations but not forms
       annotationEditorMode: PDFJS.AnnotationEditorType.DISABLE, // disable annotation editing
     })
@@ -54,9 +56,9 @@ export default class PDFJSWrapper {
     handleFetchError,
   }: {
     url: string
-    pdfFile: Record<string, any>
+    pdfFile: PDFFile
     abortController: AbortController
-    handleFetchError: (error: Error) => void
+    handleFetchError: (error: any) => void
   }) {
     this.url = url
 
@@ -89,7 +91,10 @@ export default class PDFJSWrapper {
 
       return doc
     } catch (error: any) {
-      if (!error || error.name !== 'MissingPDFException') {
+      if (
+        !error ||
+        !(error instanceof PDFJS.ResponseException && error.missing === true)
+      ) {
         captureException(error, {
           tags: { handler: 'pdf-preview' },
         })
@@ -97,6 +102,10 @@ export default class PDFJSWrapper {
 
       throw error
     }
+  }
+
+  async fetchAllData() {
+    await this.viewer.pdfDocument?.getData()
   }
 
   // update the current scale value if the container size changes

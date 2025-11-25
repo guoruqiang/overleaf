@@ -1,10 +1,12 @@
-import '../../helpers/bootstrap-3'
 import PdfSynctexControls from '../../../../frontend/js/features/pdf-preview/components/pdf-synctex-controls'
 import { cloneDeep } from 'lodash'
 import { useDetachCompileContext as useCompileContext } from '../../../../frontend/js/shared/context/detach-compile-context'
 import { useFileTreeData } from '../../../../frontend/js/shared/context/file-tree-data-context'
 import { useEffect } from 'react'
-import { EditorProviders } from '../../helpers/editor-providers'
+import {
+  EditorProviders,
+  makeEditorOpenDocProvider,
+} from '../../helpers/editor-providers'
 import { mockScope } from './scope'
 import { detachChannel, testDetachChannel } from '../../helpers/detach-channel'
 import { FindResult } from '@/features/file-tree/util/path'
@@ -74,6 +76,23 @@ const WithSelectedEntities = ({
   return null
 }
 
+function mockProviders() {
+  return {
+    EditorOpenDocProvider: makeEditorOpenDocProvider({
+      openDocName: 'main.tex',
+      currentDocumentId: null,
+      currentDocument: {
+        doc_id: 'test-doc',
+        getSnapshot: () => 'some doc content',
+        hasBufferedOps: () => false,
+        on: () => {},
+        off: () => {},
+        leaveAndCleanUpPromise: () => Promise.resolve(),
+      } as any,
+    }),
+  }
+}
+
 describe('<PdfSynctexControls/>', function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-project_id', 'test-project')
@@ -85,9 +104,10 @@ describe('<PdfSynctexControls/>', function () {
     cy.interceptCompile()
 
     const scope = mockScope()
+    const providers = mockProviders()
 
     cy.mount(
-      <EditorProviders scope={scope}>
+      <EditorProviders scope={scope} providers={providers}>
         <WithPosition mockPosition={mockPosition} />
         <WithSelectedEntities mockSelectedEntities={mockSelectedEntities} />
         <PdfSynctexControls />
@@ -146,9 +166,10 @@ describe('<PdfSynctexControls/>', function () {
     cy.interceptCompile()
 
     const scope = mockScope()
+    const providers = mockProviders()
 
     cy.mount(
-      <EditorProviders scope={scope}>
+      <EditorProviders scope={scope} providers={providers}>
         <WithPosition mockPosition={mockPosition} />
         <WithSelectedEntities
           mockSelectedEntities={
@@ -170,9 +191,10 @@ describe('<PdfSynctexControls/>', function () {
     cy.interceptCompile()
 
     const scope = mockScope()
+    const providers = mockProviders()
 
     cy.mount(
-      <EditorProviders scope={scope}>
+      <EditorProviders scope={scope} providers={providers}>
         <WithPosition mockPosition={mockPosition} />
         <WithSelectedEntities
           mockSelectedEntities={[{ type: 'fileRef' }] as FindResult[]}
@@ -197,9 +219,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <WithPosition mockPosition={mockPosition} />
           <WithSelectedEntities mockSelectedEntities={mockSelectedEntities} />
           <PdfSynctexControls />
@@ -219,9 +242,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <WithPosition mockPosition={mockPosition} />
           <WithSelectedEntities mockSelectedEntities={mockSelectedEntities} />
           <PdfSynctexControls />
@@ -280,9 +304,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <WithPosition mockPosition={mockPosition} />
           <WithSelectedEntities mockSelectedEntities={mockSelectedEntities} />
           <PdfSynctexControls />
@@ -318,9 +343,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <WithPosition mockPosition={mockPosition} />
           <PdfSynctexControls />
         </EditorProviders>
@@ -339,9 +365,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <PdfSynctexControls />
         </EditorProviders>
       )
@@ -377,7 +404,7 @@ describe('<PdfSynctexControls/>', function () {
         role: 'detached',
         event: 'action-sync-to-code',
         data: {
-          args: [mockPosition, 72],
+          args: [{ visualOffset: 72 }],
         },
       })
     })
@@ -386,9 +413,10 @@ describe('<PdfSynctexControls/>', function () {
       cy.interceptCompile()
 
       const scope = mockScope()
+      const providers = mockProviders()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={providers}>
           <WithPosition mockPosition={mockPosition} />
           <PdfSynctexControls />
         </EditorProviders>
@@ -406,7 +434,7 @@ describe('<PdfSynctexControls/>', function () {
         'not.be.disabled'
       )
 
-      cy.get('.synctex-spin-icon').should('not.exist')
+      cy.findByTestId('ol-spinner').should('not.exist')
 
       cy.wrap(null).then(() => {
         testDetachChannel.postMessage({
@@ -420,7 +448,7 @@ describe('<PdfSynctexControls/>', function () {
         'be.disabled'
       )
 
-      cy.get('.synctex-spin-icon').should('have.length', 1)
+      cy.findByTestId('ol-spinner').should('have.length', 1)
 
       cy.wrap(null).then(() => {
         testDetachChannel.postMessage({

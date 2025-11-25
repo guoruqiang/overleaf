@@ -3,11 +3,10 @@ import { UserEmailData } from '../../../../../../../types/user-email'
 import { useUserEmailsContext } from '../../../context/user-email-context'
 import { postJSON } from '../../../../../infrastructure/fetch-json'
 import { UseAsyncReturnType } from '../../../../../shared/hooks/use-async'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import OLIconButton, {
   OLIconButtonProps,
-} from '@/features/ui/components/ol/ol-icon-button'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+} from '@/shared/components/ol/ol-icon-button'
 import getMeta from '@/utils/meta'
 
 type DeleteButtonProps = Pick<
@@ -26,8 +25,7 @@ function DeleteButton({ disabled, isLoading, onClick }: DeleteButtonProps) {
       size="sm"
       onClick={onClick}
       accessibilityLabel={t('remove') || ''}
-      icon={bsVersion({ bs5: 'delete', bs3: 'trash' })}
-      bs3Props={{ fw: true }}
+      icon="delete"
     />
   )
 }
@@ -39,8 +37,7 @@ type RemoveProps = {
 
 function Remove({ userEmailData, deleteEmailAsync }: RemoveProps) {
   const { t } = useTranslation()
-  const { state, deleteEmail, resetLeaversSurveyExpiration } =
-    useUserEmailsContext()
+  const { state, deleteEmail, setLoading } = useUserEmailsContext()
   const isManaged = getMeta('ol-isManagedAccount')
 
   const getTooltipText = () => {
@@ -63,9 +60,12 @@ function Remove({ userEmailData, deleteEmailAsync }: RemoveProps) {
       )
       .then(() => {
         deleteEmail(userEmailData.email)
-        resetLeaversSurveyExpiration(userEmailData)
+        // Reset the global loading state before this row is unmounted
+        setLoading(false)
       })
-      .catch(() => {})
+      .catch(() => {
+        setLoading(false)
+      })
   }
 
   if (deleteEmailAsync.isLoading) {

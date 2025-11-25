@@ -32,6 +32,28 @@ module.exports = {
       },
       required: ['projectId'],
     },
+    ProjectBlobStats: {
+      properties: {
+        projectId: {
+          type: 'string',
+        },
+        textBlobBytes: {
+          type: 'integer',
+        },
+        binaryBlobBytes: {
+          type: 'integer',
+        },
+        totalBytes: {
+          type: 'integer',
+        },
+        nTextBlobs: {
+          type: 'integer',
+        },
+        nBinaryBlobs: {
+          type: 'integer',
+        },
+      },
+    },
     File: {
       properties: {
         hash: {
@@ -81,6 +103,19 @@ module.exports = {
           items: {
             $ref: '#/definitions/Author',
           },
+        },
+      },
+    },
+    ChunkResponseRaw: {
+      properties: {
+        startVersion: {
+          type: 'number',
+        },
+        endVersion: {
+          type: 'number',
+        },
+        endTimestamp: {
+          type: 'string',
         },
       },
     },

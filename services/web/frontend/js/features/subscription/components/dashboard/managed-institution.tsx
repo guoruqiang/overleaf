@@ -6,7 +6,7 @@ import { ManagedInstitution as Institution } from '../../../../../../types/subsc
 import { RowLink } from './row-link'
 import { debugConsole } from '@/utils/debugging'
 import getMeta from '@/utils/meta'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 type ManagedInstitutionProps = {
   institution: Institution
@@ -20,7 +20,10 @@ export default function ManagedInstitution({
   const { updateManagedInstitution } = useSubscriptionDashboardContext()
 
   const changeInstitutionalEmailSubscription = useCallback(
-    (e, institutionId: Institution['v1Id']) => {
+    (
+      e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+      institutionId: Institution['v1Id']
+    ) => {
       const updateSubscription = async (institutionId: Institution['v1Id']) => {
         setSubscriptionChanging(true)
         try {

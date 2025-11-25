@@ -41,9 +41,13 @@ class ServiceNotConfiguredError extends BackwardCompatibleError {}
 
 class TooManyRequestsError extends BackwardCompatibleError {}
 
+class ResourceGoneError extends BackwardCompatibleError {}
+
 class DuplicateNameError extends OError {}
 
 class InvalidNameError extends BackwardCompatibleError {}
+
+class IndeterminateInvoiceError extends OError {}
 
 class UnsupportedFileTypeError extends BackwardCompatibleError {}
 
@@ -71,6 +75,14 @@ class NotInV2Error extends BackwardCompatibleError {}
 
 class SLInV2Error extends BackwardCompatibleError {}
 
+class SAMLCommonsUnavailable extends OError {
+  get i18nKey() {
+    return 'saml_commons_unavailable'
+  }
+}
+
+class SAMLDomainCaptureError extends OError {}
+
 class SAMLIdentityExistsError extends OError {
   get i18nKey() {
     return 'institution_account_tried_to_add_already_registered'
@@ -85,13 +97,13 @@ class SAMLAlreadyLinkedError extends OError {
 
 class SAMLEmailNotAffiliatedError extends OError {
   get i18nKey() {
-    return 'institution_account_tried_to_add_not_affiliated'
+    return 'institution_account_tried_to_add_not_affiliated_2'
   }
 }
 
 class SAMLEmailAffiliatedWithAnotherInstitutionError extends OError {
   get i18nKey() {
-    return 'institution_account_tried_to_add_affiliated_with_another_institution'
+    return 'institution_account_tried_to_add_affiliated_with_another_institution_2'
   }
 }
 
@@ -138,6 +150,24 @@ class SAMLMissingSignatureError extends SAMLAuthenticationError {
   }
 }
 
+class SAMLInvalidUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLInvalidUserAttributeError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLMissingUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_missing_user_attribute'
+  }
+}
+
 class SAMLInvalidResponseError extends SAMLAuthenticationError {}
 
 class SAMLResponseAlreadyProcessedError extends SAMLInvalidResponseError {
@@ -157,6 +187,16 @@ class SAMLEmailNotRecognizedError extends SAMLAuthenticationError {
     return 'saml_email_not_recognized'
   }
 }
+
+class SAMLDomainCaptureRegisterError extends SAMLAuthenticationError {}
+
+class SAMLRequestDeniedError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_request_denied_error'
+  }
+}
+
+class SAMLDomainCaptureManagedUserMissingEmailError extends OError {}
 
 class SAMLSessionDataMissing extends BackwardCompatibleError {
   constructor(arg) {
@@ -188,6 +228,14 @@ class SAMLSessionDataMissing extends BackwardCompatibleError {
       this.message =
         'Unable to confirm your institutional email address. The institutional identity provider did not provide an email address in the expected attribute. Please contact us if this keeps happening.'
     }
+  }
+}
+
+class SAMLProviderRequesterError extends SAMLAuthenticationError {}
+
+class SAMLProviderRequesterInvalidNameIDPolicyError extends SAMLProviderRequesterError {
+  get i18nKey() {
+    return 'sso_provider_error_invalid_name'
   }
 }
 
@@ -268,6 +316,24 @@ class InvalidInstitutionalEmailError extends OError {
   }
 }
 
+class NonDeletableEntityError extends OError {
+  get i18nKey() {
+    return 'non_deletable_entity'
+  }
+}
+
+class FoundConnectedClientsError extends OError {
+  constructor(nConnectedClients) {
+    super(`found ${nConnectedClients} remaining connected clients`)
+  }
+}
+
+class ConcurrentLoadingOfDocsDetectedError extends OError {
+  constructor() {
+    super('concurrent loading of docs detected')
+  }
+}
+
 module.exports = {
   OError,
   BackwardCompatibleError,
@@ -275,6 +341,7 @@ module.exports = {
   ForbiddenError,
   ServiceNotConfiguredError,
   TooManyRequestsError,
+  ResourceGoneError,
   DuplicateNameError,
   InvalidNameError,
   UnsupportedFileTypeError,
@@ -286,10 +353,13 @@ module.exports = {
   UnconfirmedEmailError,
   EmailExistsError,
   InvalidError,
+  IndeterminateInvoiceError,
   NotInV2Error,
   OutputFileFetchFailedError,
   SAMLAssertionAudienceMismatch,
   SAMLAuthenticationRequiredError,
+  SAMLCommonsUnavailable,
+  SAMLDomainCaptureError,
   SAMLIdentityExistsError,
   SAMLAlreadyLinkedError,
   SAMLEmailNotAffiliatedError,
@@ -299,12 +369,20 @@ module.exports = {
   SAMLGroupSSOLoginIdentityMismatchError,
   SAMLGroupSSOLoginIdentityNotFoundError,
   SAMLGroupSSODisabledError,
+  SAMLInvalidUserAttributeError,
+  SAMLInvalidUserIdentifierError,
   SAMLInvalidSignatureError,
+  SAMLMissingUserIdentifierError,
   SAMLMissingSignatureError,
+  SAMLProviderRequesterError,
+  SAMLProviderRequesterInvalidNameIDPolicyError,
   SAMLInvalidResponseError,
   SAMLLoginFailureError,
   SAMLEmailNotRecognizedError,
   SAMLResponseAlreadyProcessedError,
+  SAMLRequestDeniedError,
+  SAMLDomainCaptureRegisterError,
+  SAMLDomainCaptureManagedUserMissingEmailError,
   SLInV2Error,
   ThirdPartyIdentityExistsError,
   ThirdPartyUserNotFoundError,
@@ -318,4 +396,7 @@ module.exports = {
   AffiliationError,
   InvalidEmailError,
   InvalidInstitutionalEmailError,
+  NonDeletableEntityError,
+  FoundConnectedClientsError,
+  ConcurrentLoadingOfDocsDetectedError,
 }

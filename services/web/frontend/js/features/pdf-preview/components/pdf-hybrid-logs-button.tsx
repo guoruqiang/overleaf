@@ -1,15 +1,13 @@
-import { memo, useCallback } from 'react'
+import { forwardRef, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import Icon from '@/shared/components/icon'
 import MaterialIcon from '@/shared/components/material-icon'
 import { useDetachCompileContext as useCompileContext } from '@/shared/context/detach-compile-context'
 import * as eventTracking from '@/infrastructure/event-tracking'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLBadge from '@/features/ui/components/ol/ol-badge'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLBadge from '@/shared/components/ol/ol-badge'
 
-function PdfHybridLogsButton() {
+const PdfHybridLogsButton = forwardRef<HTMLButtonElement>((_, ref) => {
   const { error, logEntries, toggleLogs, showLogs, stoppedOnFirstError } =
     useCompileContext()
 
@@ -34,6 +32,7 @@ function PdfHybridLogsButton() {
       overlayProps={{ placement: 'bottom' }}
     >
       <OLButton
+        ref={ref}
         variant="link"
         disabled={Boolean(error || stoppedOnFirstError)}
         active={showLogs}
@@ -42,10 +41,7 @@ function PdfHybridLogsButton() {
         style={{ position: 'relative' }}
         aria-label={showLogs ? t('view_pdf') : t('view_logs')}
       >
-        <BootstrapVersionSwitcher
-          bs3={<Icon type="file-text-o" fw />}
-          bs5={<MaterialIcon type="description" />}
-        />
+        <MaterialIcon type="description" />
 
         {!showLogs && totalCount > 0 && (
           <OLBadge bg={errorCount === 0 ? 'warning' : 'danger'}>
@@ -55,6 +51,8 @@ function PdfHybridLogsButton() {
       </OLButton>
     </OLTooltip>
   )
-}
+})
+
+PdfHybridLogsButton.displayName = 'PdfHybridLogsButton'
 
 export default memo(PdfHybridLogsButton)

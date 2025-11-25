@@ -580,7 +580,7 @@ describe('history import', function () {
       .catch(expectResponse.unprocessableEntity)
       .then(getLatestContent)
       .then(response => {
-        // Check that no chaes were made
+        // Check that no changes were made
         const snapshot = Snapshot.fromRaw(response.obj)
         expect(snapshot.countFiles()).to.equal(1)
         expect(snapshot.getFile(mainFilePathname).getHash()).to.equal(

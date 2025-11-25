@@ -16,6 +16,9 @@ import {
   syncDelete,
   syncMove,
   syncCreateEntity,
+  NewDocEntity,
+  NewLinkedFileEntity,
+  NewEntity,
 } from '../util/sync-mutation'
 import { findInTree, findInTreeOrThrow } from '../util/find-in-tree'
 import { isNameUniqueInFolder } from '../util/is-name-unique-in-folder'
@@ -33,7 +36,9 @@ import {
 } from '../errors'
 import { Folder } from '../../../../../types/folder'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
-import { useSnapshotContext } from '@/features/ide-react/context/snapshot-context'
+import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
+import { FileTreeEntity } from '@ol-types/file-tree-entity'
+import { Doc } from '@ol-types/doc'
 
 type DroppedFile = File & {
   relativePath?: string
@@ -52,14 +57,15 @@ const FileTreeActionableContext = createContext<
       isCreatingFolder: boolean
       isMoving: boolean
       inFlight: boolean
-      actionedEntities: any | null
+      actionedEntities: FileTreeEntity[] | null
       newFileCreateMode: any | null
       error: any | null
       canDelete: boolean
+      canBulkDelete: boolean
       canRename: boolean
       canCreate: boolean
       parentFolderId: string
-      selectedFileName: string | null
+      selectedFileName: string | null | undefined
       isDuplicate: (parentFolderId: string, name: string) => boolean
       startRenaming: any
       finishRenaming: any
@@ -71,8 +77,12 @@ const FileTreeActionableContext = createContext<
       finishCreatingFolder: any
       startCreatingDocOrFile: any
       startUploadingDocOrFile: any
-      finishCreatingDoc: any
-      finishCreatingLinkedFile: any
+      finishCreatingDoc: (
+        entity: Omit<NewDocEntity, 'endpoint'>
+      ) => Promise<Doc | undefined>
+      finishCreatingLinkedFile: (
+        entity: Omit<NewLinkedFileEntity, 'endpoint'>
+      ) => Promise<{ new_file_id: string } | undefined>
       cancel: () => void
       droppedFiles: { files: File[]; targetFolderId: string } | null
       setDroppedFiles: (value: DroppedFiles | null) => void
@@ -104,7 +114,7 @@ type State = {
   isCreatingFolder: boolean
   isMoving: boolean
   inFlight: boolean
-  actionedEntities: any | null
+  actionedEntities: FileTreeEntity[] | null
   newFileCreateMode: any | null
   error: unknown | null
 }
@@ -131,7 +141,7 @@ type Action =
     }
   | {
       type: ACTION_TYPES.START_DELETE
-      actionedEntities: any | null
+      actionedEntities: FileTreeEntity[] | null
     }
   | {
       type: ACTION_TYPES.START_CREATE_FILE
@@ -217,11 +227,13 @@ function fileTreeActionableReducer(state: State, action: Action) {
   }
 }
 
-export const FileTreeActionableProvider: FC = ({ children }) => {
-  const { _id: projectId } = useProjectContext()
+export const FileTreeActionableProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
+  const { projectId } = useProjectContext()
   const { fileTreeReadOnly } = useFileTreeData()
   const { indexAllReferences } = useReferencesContext()
-  const { fileTreeFromHistory } = useSnapshotContext()
+  const { write } = usePermissionsContext()
 
   const [state, dispatch] = useReducer(
     fileTreeReadOnly
@@ -319,7 +331,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
 
   // moves entities. Tree is updated immediately and data are sync'd after.
   const finishMoving = useCallback(
-    (toFolderId, draggedEntityIds) => {
+    (toFolderId: string, draggedEntityIds: Set<string>) => {
       dispatch({ type: ACTION_TYPES.MOVING })
 
       // find entities and filter out no-ops and nested files
@@ -399,7 +411,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
   }, [fileTreeData, selectedEntityIds])
 
   const finishCreatingEntity = useCallback(
-    entity => {
+    (entity: NewEntity) => {
       const error = validateCreate(fileTreeData, parentFolderId, entity)
       if (error) {
         return Promise.reject(error)
@@ -411,7 +423,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
   )
 
   const finishCreatingFolder = useCallback(
-    name => {
+    (name: string) => {
       dispatch({ type: ACTION_TYPES.CREATING_FOLDER })
       return finishCreatingEntity({ endpoint: 'folder', name })
         .then(() => {
@@ -424,7 +436,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     [finishCreatingEntity]
   )
 
-  const startCreatingFile = useCallback(newFileCreateMode => {
+  const startCreatingFile = useCallback((newFileCreateMode: any) => {
     dispatch({ type: ACTION_TYPES.START_CREATE_FILE, newFileCreateMode })
   }, [])
 
@@ -436,33 +448,40 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     startCreatingFile('upload')
   }, [startCreatingFile])
 
+  type FinishCreatingDocOrFileReturn<T> = T extends NewDocEntity
+    ? Promise<Doc | undefined>
+    : T extends NewLinkedFileEntity
+      ? Promise<{ new_file_id: string } | undefined>
+      : never
+
   const finishCreatingDocOrFile = useCallback(
-    entity => {
+    <T extends NewDocEntity | NewLinkedFileEntity>(
+      entity: T
+    ): FinishCreatingDocOrFileReturn<T> => {
       dispatch({ type: ACTION_TYPES.CREATING_FILE })
 
       return finishCreatingEntity(entity)
-        .then(() => {
+        .then(docOrFile => {
           dispatch({ type: ACTION_TYPES.CLEAR })
+          return docOrFile
         })
         .catch(error => {
           dispatch({ type: ACTION_TYPES.ERROR, error })
-        })
+        }) as FinishCreatingDocOrFileReturn<T>
     },
     [finishCreatingEntity]
   )
 
   const finishCreatingDoc = useCallback(
-    entity => {
-      entity.endpoint = 'doc'
-      return finishCreatingDocOrFile(entity)
+    (entity: Omit<NewDocEntity, 'endpoint'>) => {
+      return finishCreatingDocOrFile({ ...entity, endpoint: 'doc' })
     },
     [finishCreatingDocOrFile]
   )
 
   const finishCreatingLinkedFile = useCallback(
-    entity => {
-      entity.endpoint = 'linked_file'
-      return finishCreatingDocOrFile(entity)
+    (entity: Omit<NewLinkedFileEntity, 'endpoint'>) => {
+      return finishCreatingDocOrFile({ ...entity, endpoint: 'linked_file' })
     },
     [finishCreatingDocOrFile]
   )
@@ -494,44 +513,68 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       const selectedEntity = findInTree(fileTreeData, selectedEntityId)
 
       if (selectedEntity?.type === 'fileRef') {
-        if (fileTreeFromHistory) {
-          return `/project/${projectId}/blob/${selectedEntity.entity.hash}`
-        }
-        return `/project/${projectId}/file/${selectedEntityId}`
+        return `/project/${projectId}/blob/${selectedEntity.entity.hash}`
       }
 
       if (selectedEntity?.type === 'doc') {
         return `/project/${projectId}/doc/${selectedEntityId}/download`
       }
     }
-  }, [fileTreeData, projectId, selectedEntityIds, fileTreeFromHistory])
+  }, [fileTreeData, projectId, selectedEntityIds])
 
-  // TODO: wrap in useMemo
-  const value = {
-    canDelete: selectedEntityIds.size > 0 && !isRootFolderSelected,
-    canRename: selectedEntityIds.size === 1 && !isRootFolderSelected,
-    canCreate: selectedEntityIds.size < 2,
-    ...state,
-    parentFolderId,
-    selectedFileName,
-    isDuplicate,
-    startRenaming,
-    finishRenaming,
-    startDeleting,
-    finishDeleting,
-    finishMoving,
-    startCreatingFile,
-    startCreatingFolder,
-    finishCreatingFolder,
-    startCreatingDocOrFile,
-    startUploadingDocOrFile,
-    finishCreatingDoc,
-    finishCreatingLinkedFile,
-    cancel,
-    droppedFiles,
-    setDroppedFiles,
-    downloadPath,
-  }
+  const value = useMemo(
+    () => ({
+      canDelete: write && selectedEntityIds.size > 0 && !isRootFolderSelected,
+      canBulkDelete:
+        write && selectedEntityIds.size > 1 && !isRootFolderSelected,
+      canRename: write && selectedEntityIds.size === 1 && !isRootFolderSelected,
+      canCreate: write && selectedEntityIds.size < 2,
+      ...state,
+      parentFolderId,
+      selectedFileName,
+      isDuplicate,
+      startRenaming,
+      finishRenaming,
+      startDeleting,
+      finishDeleting,
+      finishMoving,
+      startCreatingFile,
+      startCreatingFolder,
+      finishCreatingFolder,
+      startCreatingDocOrFile,
+      startUploadingDocOrFile,
+      finishCreatingDoc,
+      finishCreatingLinkedFile,
+      cancel,
+      droppedFiles,
+      setDroppedFiles,
+      downloadPath,
+    }),
+    [
+      cancel,
+      downloadPath,
+      droppedFiles,
+      finishCreatingDoc,
+      finishCreatingFolder,
+      finishCreatingLinkedFile,
+      finishDeleting,
+      finishMoving,
+      finishRenaming,
+      isDuplicate,
+      isRootFolderSelected,
+      parentFolderId,
+      selectedFileName,
+      selectedEntityIds.size,
+      startCreatingDocOrFile,
+      startCreatingFile,
+      startCreatingFolder,
+      startDeleting,
+      startRenaming,
+      startUploadingDocOrFile,
+      state,
+      write,
+    ]
+  )
 
   return (
     <FileTreeActionableContext.Provider value={value}>
@@ -601,7 +644,7 @@ function validateCreate(
 
 function validateRename(
   fileTreeData: Folder,
-  found: { parentFolderId: string; path: string; type: string },
+  found: { parentFolderId: string; path: string[]; type: string },
   newName: string
 ) {
   if (!isCleanFilename(newName)) {

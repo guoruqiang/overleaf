@@ -1,15 +1,15 @@
 import { expressify } from '@overleaf/promise-utils'
 import TpdsUpdateHandler from './TpdsUpdateHandler.mjs'
-import UpdateMerger from './UpdateMerger.js'
+import UpdateMerger from './UpdateMerger.mjs'
 import Errors from '../Errors/Errors.js'
 import logger from '@overleaf/logger'
 import Path from 'node:path'
 import metrics from '@overleaf/metrics'
-import NotificationsBuilder from '../Notifications/NotificationsBuilder.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import ProjectCreationHandler from '../Project/ProjectCreationHandler.js'
-import ProjectDetailsHandler from '../Project/ProjectDetailsHandler.js'
-import HttpErrorHandler from '../Errors/HttpErrorHandler.js'
+import NotificationsBuilder from '../Notifications/NotificationsBuilder.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import ProjectCreationHandler from '../Project/ProjectCreationHandler.mjs'
+import ProjectDetailsHandler from '../Project/ProjectDetailsHandler.mjs'
+import HttpErrorHandler from '../Errors/HttpErrorHandler.mjs'
 import TpdsQueueManager from './TpdsQueueManager.mjs'
 
 async function createProject(req, res) {
@@ -62,7 +62,9 @@ async function mergeUpdate(req, res) {
         { err, userId, filePath },
         'tpds trying to append to project over file limit'
       )
-      NotificationsBuilder.tpdsFileLimit(userId).create(projectName, projectId)
+      await NotificationsBuilder.promises
+        .tpdsFileLimit(userId)
+        .create(projectName, projectId)
       return res.sendStatus(400)
     } else {
       throw err
@@ -138,36 +140,50 @@ async function updateFolder(req, res) {
 // .gitignore, etc because people are generally more explicit with the files
 // they want in git.
 
-async function updateProjectContents(req, res, next) {
+async function updateProjectContents(req, res) {
   const projectId = req.params.project_id
   const path = `/${req.params[0]}` // UpdateMerger expects leading slash
   const source = req.headers['x-update-source'] || 'unknown'
 
   try {
-    await UpdateMerger.promises.mergeUpdate(null, projectId, path, req, source)
+    const metadata = await UpdateMerger.promises.mergeUpdate(
+      null,
+      projectId,
+      path,
+      req,
+      source
+    )
+    res.json({
+      entityId: metadata.entityId.toString(),
+      rev: metadata.rev,
+    })
   } catch (error) {
     if (
       error instanceof Errors.InvalidNameError ||
       error instanceof Errors.DuplicateNameError
     ) {
-      return res.sendStatus(422)
+      res.sendStatus(422)
     } else {
       throw error
     }
   }
-  res.sendStatus(200)
 }
 
-async function deleteProjectContents(req, res, next) {
+async function deleteProjectContents(req, res) {
   const projectId = req.params.project_id
   const path = `/${req.params[0]}` // UpdateMerger expects leading slash
   const source = req.headers['x-update-source'] || 'unknown'
 
-  await UpdateMerger.promises.deleteUpdate(null, projectId, path, source)
-  res.sendStatus(200)
+  const entityId = await UpdateMerger.promises.deleteUpdate(
+    null,
+    projectId,
+    path,
+    source
+  )
+  res.json({ entityId })
 }
 
-async function getQueues(req, res, next) {
+async function getQueues(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   res.json(await TpdsQueueManager.promises.getQueues(userId))
 }
@@ -205,6 +221,11 @@ export default {
   updateProjectContents: expressify(updateProjectContents),
   deleteProjectContents: expressify(deleteProjectContents),
   getQueues: expressify(getQueues),
+
+  promises: {
+    deleteProjectContents,
+    updateProjectContents,
+  },
 
   // for tests only
   parseParams,

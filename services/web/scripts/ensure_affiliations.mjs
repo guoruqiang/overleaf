@@ -1,5 +1,5 @@
-import { User } from '../app/src/models/User.js'
-import UserController from '../app/src/Features/User/UserController.js'
+import { User } from '../app/src/models/User.mjs'
+import UserController from '../app/src/Features/User/UserController.mjs'
 import Logger from '@overleaf/logger'
 import pLimit from 'p-limit'
 
@@ -15,7 +15,7 @@ const query = {
 
 async function _handleEnsureAffiliation(user) {
   try {
-    await UserController.promises.ensureAffiliation(user)
+    await UserController.ensureAffiliation(user)
     console.log(`✔ ${user._id}`)
     success.push(user._id)
   } catch (error) {

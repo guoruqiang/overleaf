@@ -11,12 +11,17 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import Metrics from '@overleaf/metrics'
-import ProjectGetter from '../Project/ProjectGetter.js'
+import ProjectGetter from '../Project/ProjectGetter.mjs'
 import ProjectZipStreamManager from './ProjectZipStreamManager.mjs'
-import DocumentUpdaterHandler from '../DocumentUpdater/DocumentUpdaterHandler.js'
+import DocumentUpdaterHandler from '../DocumentUpdater/DocumentUpdaterHandler.mjs'
 import { prepareZipAttachment } from '../../infrastructure/Response.js'
 
 let ProjectDownloadsController
+
+// Keep in sync with the logic for PDF files in CompileController
+function getSafeProjectName(project) {
+  return project.name.replace(/[^\p{L}\p{Nd}]/gu, '_')
+}
 
 export default ProjectDownloadsController = {
   downloadProject(req, res, next) {
@@ -41,7 +46,7 @@ export default ProjectDownloadsController = {
                 if (error != null) {
                   return next(error)
                 }
-                prepareZipAttachment(res, `${project.name}.zip`)
+                prepareZipAttachment(res, `${getSafeProjectName(project)}.zip`)
                 return stream.pipe(res)
               }
             )

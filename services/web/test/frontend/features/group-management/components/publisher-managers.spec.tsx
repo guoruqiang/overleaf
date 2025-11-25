@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import PublisherManagers from '@/features/group-management/components/publisher-managers'
 
 const JOHN_DOE = {
@@ -29,29 +28,32 @@ describe('publisher managers', function () {
       win.metaAttributesCache.set('ol-users', [JOHN_DOE, BOBBY_LAPOINTE])
       win.metaAttributesCache.set('ol-groupId', GROUP_ID)
       win.metaAttributesCache.set('ol-groupName', 'My Awesome Publisher')
+      win.metaAttributesCache.set('ol-hasWriteAccess', true)
     })
 
     cy.mount(<PublisherManagers />)
   })
 
   it('renders the publisher management page', function () {
-    cy.get('h1').contains('My Awesome Publisher')
+    cy.findByRole('heading', { name: /my awesome publisher/i, level: 1 })
 
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.contains('john.doe@test.com')
-        cy.contains('John Doe')
-        cy.contains('15th Jan 2023')
-        cy.get(`[aria-label="Invite not yet accepted"]`)
-      })
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByText('john.doe@test.com')
+          cy.findByText('John Doe')
+          cy.findByText('15th Jan 2023')
+          cy.findByText('Invite not yet accepted')
+        })
 
-      cy.get('li:nth-child(3)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.contains('Bobby Lapointe')
-        cy.contains('2nd Jan 2023')
-        cy.get(`[aria-label="Accepted invite"]`)
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.findByText('bobby.lapointe@test.com')
+          cy.findByText('Bobby Lapointe')
+          cy.findByText('2nd Jan 2023')
+          cy.findByText('Accepted invite')
+        })
       })
-    })
   })
 
   it('sends an invite', function () {
@@ -65,16 +67,22 @@ describe('publisher managers', function () {
       },
     })
 
-    cy.get('.form-control').type('someone.else@test.com')
-    cy.get('button').click()
-
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(4)').within(() => {
-        cy.contains('someone.else@test.com')
-        cy.contains('N/A')
-        cy.get(`[aria-label="Invite not yet accepted"]`)
-      })
+    cy.findByTestId('add-members-form').within(() => {
+      cy.findByLabelText(/Add more manager emails/i).type(
+        'someone.else@test.com'
+      )
+      cy.findByRole('button', { name: /add/i }).click()
     })
+
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(3)').within(() => {
+          cy.findByText('someone.else@test.com')
+          cy.findByText('N/A')
+          cy.findByText('Invite not yet accepted')
+        })
+      })
   })
 
   it('tries to send an invite and displays the error', function () {
@@ -87,31 +95,39 @@ describe('publisher managers', function () {
       },
     })
 
-    cy.get('.form-control').type('someone.else@test.com')
-    cy.get('button').click()
-    cy.get('.alert').contains('Error: User already added')
+    cy.findByTestId('add-members-form').within(() => {
+      cy.findByLabelText(/Add more manager emails/i).type(
+        'someone.else@test.com'
+      )
+      cy.findByRole('button', { name: /add/i }).click()
+    })
+    cy.findByRole('alert').should('contain.text', 'Error: User already added')
   })
 
   it('checks the select all checkbox', function () {
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.get('.select-item').should('not.be.checked')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByLabelText(/select user/i).should('not.be.checked')
+        })
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.findByLabelText(/select user/i).should('not.be.checked')
+        })
       })
-      cy.get('li:nth-child(3)').within(() => {
-        cy.get('.select-item').should('not.be.checked')
-      })
-    })
 
-    cy.get('.select-all').click()
+    cy.findByTestId('select-all-checkbox').click()
 
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.get('.select-item').should('be.checked')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByLabelText(/select user/i).should('be.checked')
+        })
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.findByLabelText(/select user/i).should('be.checked')
+        })
       })
-      cy.get('li:nth-child(3)').within(() => {
-        cy.get('.select-item').should('be.checked')
-      })
-    })
   })
 
   it('remove a member', function () {
@@ -119,22 +135,26 @@ describe('publisher managers', function () {
       statusCode: 200,
     })
 
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.get('.select-item').check()
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByLabelText(/select user/i).check()
+        })
       })
-    })
 
-    cy.get('button').contains('Remove manager').click()
+    cy.findByRole('button', { name: 'Remove manager' }).click()
 
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.contains('Bobby Lapointe')
-        cy.contains('2nd Jan 2023')
-        cy.get(`[aria-label="Accepted invite"]`)
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByText('bobby.lapointe@test.com')
+          cy.findByText('Bobby Lapointe')
+          cy.findByText('2nd Jan 2023')
+          cy.findByText('Accepted invite')
+        })
       })
-    })
   })
 
   it('tries to remove a manager and displays the error', function () {
@@ -142,13 +162,15 @@ describe('publisher managers', function () {
       statusCode: 500,
     })
 
-    cy.get('ul').within(() => {
-      cy.get('li:nth-child(2)').within(() => {
-        cy.get('.select-item').check()
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByLabelText(/select user/i).check()
+        })
       })
-    })
-    cy.get('button').contains('Remove manager').click()
+    cy.findByRole('button', { name: /remove manager/i }).click()
 
-    cy.get('.alert').contains('Sorry, something went wrong')
+    cy.findByRole('alert').should('contain.text', 'Sorry, something went wrong')
   })
 })

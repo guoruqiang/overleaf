@@ -4,7 +4,7 @@ import { postJSON } from '@/infrastructure/fetch-json'
 import { debugConsole } from '@/utils/debugging'
 import { useEditorContext } from '@/shared/context/editor-context'
 
-export const useTutorial = (
+const useTutorial = (
   tutorialKey: string,
   eventData: Record<string, any> = {}
 ) => {
@@ -19,7 +19,7 @@ export const useTutorial = (
       action = 'complete',
       ...rest
     }: {
-      event: 'promo-click' | 'promo-dismiss'
+      event: string
       action: 'complete' | 'postpone'
     } & Record<string, any>) => {
       eventTracking.sendMB(event, { ...eventData, ...rest })
@@ -34,12 +34,15 @@ export const useTutorial = (
     [deactivateTutorial, eventData, tutorialKey]
   )
 
-  const dismissTutorial = useCallback(async () => {
-    await completeTutorial({
-      event: 'promo-dismiss',
-      action: 'complete',
-    })
-  }, [completeTutorial])
+  const dismissTutorial = useCallback(
+    async (eventName: string = 'promo-dismiss') => {
+      await completeTutorial({
+        event: eventName,
+        action: 'complete',
+      })
+    },
+    [completeTutorial]
+  )
 
   const maybeLater = useCallback(async () => {
     await completeTutorial({

@@ -1,9 +1,8 @@
 import { expect } from 'chai'
 import _ from 'lodash'
-import fs from 'fs'
 import timekeeper from 'timekeeper'
 import Settings from '@overleaf/settings'
-import UserHelper from './helpers/User.js'
+import UserHelper from './helpers/User.mjs'
 import express from 'express'
 import { plainTextResponse } from '../../../app/src/infrastructure/Response.js'
 
@@ -48,7 +47,6 @@ describe('LinkedFiles', function () {
   beforeEach(async function () {
     owner = new User()
     await owner.login()
-    await fs.promises.mkdir(Settings.path.dumpFolder, { recursive: true })
   })
 
   describe('creating a project linked file', function () {
@@ -445,7 +443,7 @@ describe('LinkedFiles', function () {
       projectTwoRootFolderId = projectTwo.rootFolder[0]._id.toString()
     })
 
-    it('should import the project.pdf file from the source project and refresh it', async function () {
+    it('should import the output.pdf file from the source project and refresh it', async function () {
       // import the file
       let { response, body } = await owner.doRequest('post', {
         url: `/project/${projectOneId}/linked_file`,
@@ -455,7 +453,7 @@ describe('LinkedFiles', function () {
           provider: 'project_output_file',
           data: {
             source_project_id: projectTwoId,
-            source_output_file_path: 'project.pdf',
+            source_output_file_path: 'output.pdf',
             build_id: '1234-abcd',
           },
         },
@@ -470,7 +468,7 @@ describe('LinkedFiles', function () {
       expect(firstFile.linkedFileData).to.deep.equal({
         provider: 'project_output_file',
         source_project_id: projectTwoId,
-        source_output_file_path: 'project.pdf',
+        source_output_file_path: 'output.pdf',
         build_id: '1234-abcd',
         importedAt: new Date().toISOString(),
       })
@@ -505,7 +503,7 @@ describe('LinkedFiles', function () {
         linkedFileData: {
           provider: 'project_output_file',
           v1_source_doc_id: 9999999, // We won't find this id in the database
-          source_output_file_path: 'project.pdf',
+          source_output_file_path: 'output.pdf',
         },
         _id: 'abcdef',
         rev: 0,

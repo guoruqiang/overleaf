@@ -1,10 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import OLSpinner, {
-  OLSpinnerSize,
-} from '@/features/ui/components/ol/ol-spinner'
-import { isBootstrap5 } from '@/features/utils/bootstrap-5'
-import { setTimeout } from '@/utils/window'
+import OLSpinner, { OLSpinnerSize } from '@/shared/components/ol/ol-spinner'
 import classNames from 'classnames'
 
 function LoadingSpinner({
@@ -25,7 +21,13 @@ function LoadingSpinner({
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Ensure that spinner is displayed immediately if delay is 0
+    if (delay === 0) {
+      setShow(true)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
       setShow(true)
     }, delay)
 
@@ -38,14 +40,16 @@ function LoadingSpinner({
     return null
   }
 
-  const extraClasses = isBootstrap5()
-    ? [align === 'left' ? 'align-items-start' : 'align-items-center']
-    : null
-
   return (
-    <div className={classNames('loading', className, extraClasses)}>
+    <div
+      role="status"
+      className={classNames(
+        'loading',
+        className,
+        align === 'left' ? 'align-items-start' : 'align-items-center'
+      )}
+    >
       <OLSpinner size={size} />
-      &nbsp;
       {loadingText || `${t('loading')}…`}
     </div>
   )

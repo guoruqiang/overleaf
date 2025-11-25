@@ -1,5 +1,3 @@
-import { Modal } from 'react-bootstrap'
-import AccessibleModal from '@/shared/components/accessible-modal'
 import { useTranslation, Trans } from 'react-i18next'
 import { User } from '../../../../../../types/group-management/user'
 import getMeta from '@/utils/meta'
@@ -10,6 +8,14 @@ import NotificationScrolledTo from '@/shared/components/notification-scrolled-to
 import { debugConsole } from '@/utils/debugging'
 import { GroupUserAlert } from '../../utils/types'
 import { useGroupMembersContext } from '../../context/group-members-context'
+import {
+  OLModal,
+  OLModalBody,
+  OLModalFooter,
+  OLModalHeader,
+  OLModalTitle,
+} from '@/shared/components/ol/ol-modal'
+import OLButton from '@/shared/components/ol/ol-button'
 
 export type UnlinkUserModalProps = {
   onClose: () => void
@@ -42,7 +48,7 @@ export default function UnlinkUserModal({
   }, [groupId, updateMemberView, user])
 
   const handleUnlink = useCallback(
-    event => {
+    (event: React.MouseEvent) => {
       event.preventDefault()
       setHasError(undefined)
       if (!user) {
@@ -77,11 +83,11 @@ export default function UnlinkUserModal({
   )
 
   return (
-    <AccessibleModal show onHide={onClose}>
-      <Modal.Header>
-        <Modal.Title>{t('unlink_user')}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
+    <OLModal show onHide={onClose}>
+      <OLModalHeader>
+        <OLModalTitle>{t('unlink_from_sso')}</OLModalTitle>
+      </OLModalHeader>
+      <OLModalBody>
         {hasError && (
           <div className="mb-3">
             <NotificationScrolledTo
@@ -101,19 +107,23 @@ export default function UnlinkUserModal({
             tOptions={{ interpolation: { escapeValue: true } }}
           />
         </p>
-      </Modal.Body>
-      <Modal.Footer>
-        <button className="btn btn-secondary" disabled={unlinkInFlight}>
+      </OLModalBody>
+      <OLModalFooter>
+        <OLButton
+          variant="secondary"
+          disabled={unlinkInFlight}
+          onClick={onClose}
+        >
           {t('cancel')}
-        </button>
-        <button
-          className="btn btn-danger"
+        </OLButton>
+        <OLButton
+          variant="danger"
           onClick={e => handleUnlink(e)}
           disabled={unlinkInFlight}
         >
-          {t('unlink_user')}
-        </button>
-      </Modal.Footer>
-    </AccessibleModal>
+          {t('unlink_from_sso')}
+        </OLButton>
+      </OLModalFooter>
+    </OLModal>
   )
 }

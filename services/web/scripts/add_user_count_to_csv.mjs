@@ -6,9 +6,10 @@ import fs from 'node:fs'
 // eslint-disable-next-line import/no-unresolved
 import * as csv from 'csv/sync'
 import minimist from 'minimist'
-import UserGetter from '../app/src/Features/User/UserGetter.js'
+import UserGetter from '../app/src/Features/User/UserGetter.mjs'
 import { db } from '../app/src/infrastructure/mongodb.js'
 import _ from 'lodash'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const argv = minimist(process.argv.slice(2), {
   string: ['domain', 'output'],
@@ -24,7 +25,7 @@ const argv = minimist(process.argv.slice(2), {
 })
 
 if (argv.help || argv._.length > 1) {
-  console.error(`Usage: node scripts/add_user_count_to_csv.js [OPTS] [INPUT-FILE]
+  console.error(`Usage: node scripts/add_user_count_to_csv.mjs [OPTS] [INPUT-FILE]
     Looks up the number of users for each domain in the input file and adds
     columns for the number of users in the domain, subdomains, and total.
 
@@ -86,7 +87,7 @@ async function getUsersByHostnameWithSubdomain(domain, projection) {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   console.log('Done')
   process.exit(0)
 } catch (error) {

@@ -56,6 +56,39 @@ paths:
                   content: string
         description: 'UserID and Content of the message to be posted. '
       description: Send global message  for the project with Project ID provided
+  '/project/{projectId}/messages/{messageId}':
+    parameters:
+      - schema:
+          type: string
+        name: projectId
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: messageId
+        in: path
+        required: true
+    get:
+      summary: Get single global message
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: Message not found
+      operationId: getGlobalMessage
+      description: Get a single global message by message ID for the project with Project ID provided
+    delete:
+      summary: Delete global message
+      operationId: deleteGlobalMessage
+      responses:
+        '204':
+          description: No Content
+      description: 'Delete global message'
   '/project/{projectId}/thread/{threadId}/messages':
     parameters:
       - schema:
@@ -153,6 +186,46 @@ paths:
           - user_id: Id of the user (optional)
       description: |
         Update message with Message ID provided from the Thread ID and Project ID provided
+  '/project/{projectId}/messages/{messageId}/edit':
+    parameters:
+      - schema:
+          type: string
+        name: projectId
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: messageId
+        in: path
+        required: true
+    post:
+      summary: Edit global message
+      operationId: editGlobalMessage
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Not Found
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                user_id:
+                  type: string
+                  readOnly: true
+              required:
+                - content
+            examples: {}
+        description: |-
+          JSON object with :
+          - content: Content of the message to edit
+          - user_id: Id of the user (optional)
+      description: |
+        Update global message with Message ID provided from the Project ID provided
   '/project/{projectId}/thread/{threadId}/messages/{messageId}':
     parameters:
       - schema:
@@ -170,6 +243,20 @@ paths:
         name: messageId
         in: path
         required: true
+    get:
+      summary: Get thread message
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: Message not found
+      operationId: getThreadMessage
+      description: Get a specific message by message ID from the thread with Thread ID and Project ID provided
     delete:
       summary: Delete message
       operationId: deleteMessage
@@ -177,6 +264,34 @@ paths:
         '204':
           description: No Content
       description: 'Delete message with Message ID provided, from the Thread with ThreadID and ProjectID provided'
+  '/project/{projectId}/thread/{threadId}/user/{userId}/messages/{messageId}':
+    parameters:
+      - schema:
+          type: string
+        name: projectId
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: threadId
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: userId
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: messageId
+        in: path
+        required: true
+    delete:
+      summary: Delete message written by a given user
+      operationId: deleteUserMessage
+      responses:
+        '204':
+          description: No Content
   '/project/{projectId}/thread/{threadId}/resolve':
     parameters:
       - schema:
@@ -242,6 +357,20 @@ paths:
         name: threadId
         in: path
         required: true
+    get:
+      summary: Get Thread
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '404':
+          description: Thread not found
+      operationId: getThread
+      description: Get a thread with ThreadID and ProjectID provided
     delete:
       summary: Delete thread
       operationId: deleteThread

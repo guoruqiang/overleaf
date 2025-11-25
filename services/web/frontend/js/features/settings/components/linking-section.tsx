@@ -5,7 +5,7 @@ import { useSSOContext, SSOSubscription } from '../context/sso-context'
 import { SSOLinkingWidget } from './linking/sso-widget'
 import getMeta from '../../../utils/meta'
 import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLNotification from '@/shared/components/ol/ol-notification'
 
 const availableIntegrationLinkingWidgets = importOverleafModules(
   'integrationLinkingWidgets'
@@ -86,31 +86,23 @@ function LinkingSection() {
 
   return (
     <>
-      <h3 id="integrations">{t('integrations')}</h3>
-      <p className="small">{t('linked_accounts_explained')}</p>
       {haslangFeedbackLinkingWidgets ? (
         <>
-          <h3 id="language-feedback" className="text-capitalize">
-            {t('language_feedback')}
-          </h3>
-          <div className="settings-widgets-container">
-            {langFeedbackLinkingWidgets.map(
-              ({ import: { default: widget }, path }, widgetIndex) => (
-                <ModuleLinkingWidget
-                  key={path}
-                  ModuleComponent={widget}
-                  isLast={widgetIndex === langFeedbackLinkingWidgets.length - 1}
-                />
-              )
-            )}
-          </div>
+          <h3 id="language-feedback">{t('ai_features')}</h3>
+          {langFeedbackLinkingWidgets.map(
+            ({ import: { default: widget }, path }, widgetIndex) => (
+              <ModuleLinkingWidget
+                key={path}
+                ModuleComponent={widget}
+                isLast={widgetIndex === langFeedbackLinkingWidgets.length - 1}
+              />
+            )
+          )}
         </>
       ) : null}
       {hasIntegrationLinkingSection ? (
         <>
-          <h3 id="project-sync" className="text-capitalize">
-            {t('project_synchronisation')}
-          </h3>
+          <h3 id="project-sync">{t('project_synchronisation')}</h3>
           {projectSyncSuccessMessage ? (
             <OLNotification
               type="success"
@@ -119,7 +111,7 @@ function LinkingSection() {
           ) : null}
           <div className="settings-widgets-container">
             {allIntegrationLinkingWidgets.map(
-              ({ import: importObject, path }, widgetIndex) => (
+              ({ import: importObject }, widgetIndex) => (
                 <ModuleLinkingWidget
                   key={Object.keys(importObject)[0]}
                   ModuleComponent={Object.values(importObject)[0]}
@@ -134,12 +126,10 @@ function LinkingSection() {
       ) : null}
       {hasReferencesLinkingSection ? (
         <>
-          <h3 id="references" className="text-capitalize">
-            {t('reference_managers')}
-          </h3>
+          <h3 id="references">{t('reference_managers')}</h3>
           <div className="settings-widgets-container">
             {referenceLinkingWidgets.map(
-              ({ import: importObject, path }, widgetIndex) => (
+              ({ import: importObject }, widgetIndex) => (
                 <ModuleLinkingWidget
                   key={Object.keys(importObject)[0]}
                   ModuleComponent={Object.values(importObject)[0]}
@@ -152,9 +142,7 @@ function LinkingSection() {
       ) : null}
       {hasSSOLinkingSection ? (
         <>
-          <h3 id="linked-accounts" className="text-capitalize">
-            {t('linked_accounts')}
-          </h3>
+          <h3 id="linked-accounts">{t('linked_accounts')}</h3>
           {ssoErrorMessage ? (
             <OLNotification
               type="error"

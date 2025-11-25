@@ -1,52 +1,75 @@
 import { createContext, FC, useContext, useEffect, useMemo } from 'react'
 import { ScopeValueStore } from '../../../../types/ide/scope-value-store'
 import { ScopeEventEmitter } from '../../../../types/ide/scope-event-emitter'
+import { Socket } from '@/features/ide-react/connection/types/socket'
+import { useUserSettingsContext } from './user-settings-context'
+import { userStyles } from '../utils/styles'
+import { canUseNewEditor } from '@/features/ide-redesign/utils/new-editor-utils'
+import { useActiveOverallTheme } from '../hooks/use-active-overall-theme'
 
 export type Ide = {
-  [key: string]: any // TODO: define the rest of the `ide` and `$scope` properties
-  $scope: Record<string, any>
+  socket: Socket
 }
 
 type IdeContextValue = Ide & {
-  scopeStore: ScopeValueStore
   scopeEventEmitter: ScopeEventEmitter
+  unstableStore: ScopeValueStore
 }
 
 export const IdeContext = createContext<IdeContextValue | undefined>(undefined)
 
-export const IdeProvider: FC<{
-  ide: Ide
-  scopeStore: ScopeValueStore
-  scopeEventEmitter: ScopeEventEmitter
-}> = ({ ide, scopeStore, scopeEventEmitter, children }) => {
+export const IdeProvider: FC<
+  React.PropsWithChildren<{
+    ide: Ide
+    scopeEventEmitter: ScopeEventEmitter
+    unstableStore: ScopeValueStore
+  }>
+> = ({ ide, scopeEventEmitter, unstableStore, children }) => {
   /**
-   * Expose scopeStore via `window.overleaf.unstable.store`, so it can be accessed by external extensions.
+   * Expose unstableStore via `window.overleaf.unstable.store`, so it can be accessed by external extensions.
    *
    * These properties are expected to be available:
    *   - `editor.view`
-   *   - `project.spellcheckLanguage`
    *   - `editor.open_doc_name`,
    *   - `editor.open_doc_id`,
    *   - `settings.theme`
    *   - `settings.keybindings`
+   *   - `settings.fontSize`
+   *   - `settings.fontFamily`
+   *   - `settings.lineHeight`
    */
   useEffect(() => {
     window.overleaf = {
       ...window.overleaf,
       unstable: {
         ...window.overleaf?.unstable,
-        store: scopeStore,
+        store: unstableStore,
       },
     }
-  }, [scopeStore])
+  }, [unstableStore])
+
+  const { userSettings } = useUserSettingsContext()
+  const activeOverallTheme = useActiveOverallTheme()
+
+  useEffect(() => {
+    const { fontFamily, lineHeight } = userStyles(userSettings)
+    unstableStore.set('settings', {
+      overallTheme: activeOverallTheme,
+      keybindings: userSettings.mode === 'none' ? 'default' : userSettings.mode,
+      fontFamily,
+      lineHeight,
+      fontSize: userSettings.fontSize,
+      isNewEditor: canUseNewEditor() && userSettings.enableNewEditor,
+    })
+  }, [unstableStore, userSettings, activeOverallTheme])
 
   const value = useMemo<IdeContextValue>(() => {
     return {
       ...ide,
-      scopeStore,
       scopeEventEmitter,
+      unstableStore,
     }
-  }, [ide, scopeStore, scopeEventEmitter])
+  }, [ide, scopeEventEmitter, unstableStore])
 
   return <IdeContext.Provider value={value}>{children}</IdeContext.Provider>
 }

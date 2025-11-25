@@ -4,6 +4,7 @@ import {
   EditorView,
   showTooltip,
   Tooltip,
+  TooltipView,
 } from '@codemirror/view'
 import {
   Extension,
@@ -11,18 +12,33 @@ import {
   StateEffect,
   Range,
   SelectionRange,
+  EditorState,
+  Transaction,
 } from '@codemirror/state'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { v4 as uuid } from 'uuid'
-import { isCursorNearViewportTop } from '../utils/is-cursor-near-edge'
 
 export const addNewCommentRangeEffect = StateEffect.define<Range<Decoration>>()
 
-export const removeNewCommentRangeEffect = StateEffect.define<Decoration>()
+export const removeNewCommentRangeEffect = StateEffect.define<string>()
 
-export const textSelectedEffect = StateEffect.define<EditorView>()
+const mouseDownEffect = StateEffect.define()
+const mouseUpEffect = StateEffect.define()
+const mouseDownStateField = StateField.define<boolean>({
+  create() {
+    return false
+  },
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(mouseDownEffect)) {
+        return true
+      } else if (effect.is(mouseUpEffect)) {
+        return false
+      }
+    }
 
-export const removeReviewPanelTooltipEffect = StateEffect.define()
+    return value
+  },
+})
 
 export const buildAddNewCommentRangeEffect = (range: SelectionRange) => {
   return addNewCommentRangeEffect.of(
@@ -36,32 +52,29 @@ export const buildAddNewCommentRangeEffect = (range: SelectionRange) => {
 }
 
 export const reviewTooltip = (): Extension => {
-  if (!isSplitTestEnabled('review-panel-redesign')) {
-    return []
+  let mouseUpListener: null | (() => void) = null
+  const disableMouseUpListener = () => {
+    if (mouseUpListener) {
+      document.removeEventListener('mouseup', mouseUpListener)
+    }
   }
 
   return [
     reviewTooltipTheme,
     reviewTooltipStateField,
-    EditorView.updateListener.of(update => {
-      if (update.selectionSet && !update.state.selection.main.empty) {
-        update.view.dispatch({
-          effects: textSelectedEffect.of(update.view),
-        })
-      } else if (
-        !update.startState.selection.main.empty &&
-        update.state.selection.main.empty
-      ) {
-        update.view.dispatch({
-          effects: removeReviewPanelTooltipEffect.of(null),
-        })
-      }
-    }),
+    mouseDownStateField,
     EditorView.domEventHandlers({
-      mousedown(event, view) {
+      mousedown: (event, view) => {
+        disableMouseUpListener()
+        mouseUpListener = () => {
+          disableMouseUpListener()
+          view.dispatch({ effects: mouseUpEffect.of(null) })
+        }
+
         view.dispatch({
-          effects: removeReviewPanelTooltipEffect.of(null),
+          effects: mouseDownEffect.of(null),
         })
+        document.addEventListener('mouseup', mouseUpListener)
       },
     }),
   ]
@@ -81,16 +94,11 @@ export const reviewTooltipStateField = StateField.define<{
     addCommentRanges = addCommentRanges.map(tr.changes)
 
     for (const effect of tr.effects) {
-      if (effect.is(removeReviewPanelTooltipEffect)) {
-        return { tooltip: null, addCommentRanges }
-      }
-
       if (effect.is(removeNewCommentRangeEffect)) {
-        const rangeToRemove = effect.value
+        const threadId = effect.value
         addCommentRanges = addCommentRanges.update({
-          // eslint-disable-next-line no-unused-vars
-          filter: (from, to, value) => {
-            return value.spec.id !== rangeToRemove.spec.id
+          filter: (_from, _to, value) => {
+            return value.spec.id !== threadId
           },
         })
       }
@@ -101,17 +109,31 @@ export const reviewTooltipStateField = StateField.define<{
           add: [rangeToAdd],
         })
       }
-
-      if (effect.is(textSelectedEffect)) {
-        tooltip = buildTooltip(effect.value)
-      }
-
-      if (tooltip && tr.state.selection.main.empty) {
-        tooltip = null
-      }
     }
 
-    return { tooltip, addCommentRanges }
+    if (tr.state.selection.main.empty) {
+      return { tooltip: null, addCommentRanges }
+    }
+
+    if (
+      !tr.effects.some(effect => effect.is(mouseUpEffect)) &&
+      tr.annotation(Transaction.userEvent) !== 'select' &&
+      tr.annotation(Transaction.userEvent) !== 'select.pointer'
+    ) {
+      if (tr.selection) {
+        // selection was changed, remove the tooltip
+        return { tooltip: null, addCommentRanges }
+      }
+      // for any other update, we keep the tooltip because it could be created in previous transaction
+      // and we are still waiting for "mouse up" event to show it
+      return { tooltip, addCommentRanges }
+    }
+
+    const isMouseDown = tr.state.field(mouseDownStateField)
+    // if "isMouseDown" is true, tooltip will be created but still hidden
+    // the reason why we cant just create the tooltip on mouse up is because transaction.userEvent is empty at that point
+
+    return { tooltip: buildTooltip(tr.state, isMouseDown), addCommentRanges }
   },
 
   provide: field => [
@@ -120,24 +142,40 @@ export const reviewTooltipStateField = StateField.define<{
   ],
 })
 
-function buildTooltip(view: EditorView): Tooltip | null {
-  if (view.state.selection.main.empty) {
-    return null
-  }
+function buildTooltip(state: EditorState, hidden: boolean): Tooltip | null {
+  const lineAtFrom = state.doc.lineAt(state.selection.main.from)
+  const lineAtTo = state.doc.lineAt(state.selection.main.to)
+  const multiLineSelection = lineAtFrom.number !== lineAtTo.number
+  const column = state.selection.main.head - lineAtTo.from
 
-  const pos = view.state.selection.main.head
+  // If the selection is a multi-line selection and the cursor is at the beginning of the next line
+  // we want to show the tooltip at the end of the previous line
+  const pos =
+    multiLineSelection && column === 0
+      ? state.selection.main.head - 1
+      : state.selection.main.head
+
   return {
     pos,
-    above: !isCursorNearViewportTop(view, pos, 50),
-    strictSide: true,
-    arrow: false,
-    create() {
-      const dom = document.createElement('div')
-      dom.className = 'review-tooltip-menu-container'
-      return { dom, overlap: true, offset: { x: 0, y: 8 } }
-    },
+    above: state.selection.main.head !== state.selection.main.to,
+    create: hidden
+      ? createHiddenReviewTooltipView
+      : createVisibleReviewTooltipView,
   }
 }
+
+const createReviewTooltipView = (hidden: boolean): TooltipView => {
+  const dom = document.createElement('div')
+  dom.className = 'review-tooltip-menu-container'
+  dom.style.display = hidden ? 'none' : 'block'
+  return {
+    dom,
+    overlap: true,
+    offset: { x: 0, y: 8 },
+  }
+}
+const createHiddenReviewTooltipView = () => createReviewTooltipView(true)
+const createVisibleReviewTooltipView = () => createReviewTooltipView(false)
 
 /**
  * Styles for the tooltip

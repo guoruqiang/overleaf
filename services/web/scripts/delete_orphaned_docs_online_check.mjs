@@ -1,4 +1,4 @@
-import DocstoreManager from '../app/src/Features/Docstore/DocstoreManager.js'
+import DocstoreManager from '../app/src/Features/Docstore/DocstoreManager.mjs'
 import { promisify } from 'node:util'
 import mongodb from 'mongodb-legacy'
 import {
@@ -8,6 +8,7 @@ import {
 } from '../app/src/infrastructure/mongodb.js'
 import { promiseMapWithLimit } from '@overleaf/promise-utils'
 import DeleteOrphanedDataHelper from './delete_orphaned_data_helper.mjs'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const { ObjectId } = mongodb
 const sleep = promisify(setTimeout)
@@ -170,7 +171,7 @@ async function letUserDoubleCheckInputs() {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   console.error('Done.')
   process.exit(0)
 } catch (error) {

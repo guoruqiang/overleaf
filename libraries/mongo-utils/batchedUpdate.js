@@ -16,6 +16,7 @@ let VERBOSE_LOGGING
 let BATCH_RANGE_START
 let BATCH_RANGE_END
 let BATCH_MAX_TIME_SPAN_IN_MS
+let BATCHED_UPDATE_RUNNING = false
 
 /**
  * @typedef {import("mongodb").Collection} Collection
@@ -34,6 +35,7 @@ let BATCH_MAX_TIME_SPAN_IN_MS
  * @property {string} [BATCH_RANGE_START]
  * @property {string} [BATCH_SIZE]
  * @property {string} [VERBOSE_LOGGING]
+ * @property {(progress: string) => Promise<void>} [trackProgress]
  */
 
 /**
@@ -46,9 +48,9 @@ function refreshGlobalOptionsForBatchedUpdate(options = {}) {
   BATCH_SIZE = parseInt(options.BATCH_SIZE || '1000', 10) || 1000
   VERBOSE_LOGGING = options.VERBOSE_LOGGING === 'true'
   if (options.BATCH_LAST_ID) {
-    BATCH_RANGE_START = new ObjectId(options.BATCH_LAST_ID)
+    BATCH_RANGE_START = objectIdFromInput(options.BATCH_LAST_ID)
   } else if (options.BATCH_RANGE_START) {
-    BATCH_RANGE_START = new ObjectId(options.BATCH_RANGE_START)
+    BATCH_RANGE_START = objectIdFromInput(options.BATCH_RANGE_START)
   } else {
     if (BATCH_DESCENDING) {
       BATCH_RANGE_START = ID_EDGE_FUTURE
@@ -61,7 +63,7 @@ function refreshGlobalOptionsForBatchedUpdate(options = {}) {
     10
   )
   if (options.BATCH_RANGE_END) {
-    BATCH_RANGE_END = new ObjectId(options.BATCH_RANGE_END)
+    BATCH_RANGE_END = objectIdFromInput(options.BATCH_RANGE_END)
   } else {
     if (BATCH_DESCENDING) {
       BATCH_RANGE_END = ID_EDGE_PAST
@@ -118,6 +120,28 @@ async function performUpdate(collection, nextBatch, update) {
     { _id: { $in: nextBatch.map(entry => entry._id) } },
     update
   )
+}
+
+/**
+ * @param {string} input
+ * @return {ObjectId}
+ */
+function objectIdFromInput(input) {
+  if (input.includes('T')) {
+    const t = new Date(input).getTime()
+    if (Number.isNaN(t)) throw new Error(`${input} is not a valid date`)
+    return objectIdFromMs(t)
+  } else {
+    return new ObjectId(input)
+  }
+}
+
+/**
+ * @param {ObjectId} objectId
+ * @return {string}
+ */
+function renderObjectId(objectId) {
+  return `${objectId} (${objectId.getTimestamp().toISOString()})`
 }
 
 /**
@@ -187,59 +211,71 @@ async function batchedUpdate(
   update,
   projection,
   findOptions,
-  batchedUpdateOptions
+  batchedUpdateOptions = {}
 ) {
-  ID_EDGE_PAST = await getIdEdgePast(collection)
-  if (!ID_EDGE_PAST) {
-    console.warn(
-      `The collection ${collection.collectionName} appears to be empty.`
-    )
-    return 0
+  // only a single batchedUpdate can run at a time due to global variables
+  if (BATCHED_UPDATE_RUNNING) {
+    throw new Error('batchedUpdate is already running')
   }
-  refreshGlobalOptionsForBatchedUpdate(batchedUpdateOptions)
-
-  findOptions = findOptions || {}
-  findOptions.readPreference = READ_PREFERENCE_SECONDARY
-
-  projection = projection || { _id: 1 }
-  let nextBatch
-  let updated = 0
-  let start = BATCH_RANGE_START
-
-  while (start !== BATCH_RANGE_END) {
-    let end = getNextEnd(start)
-    nextBatch = await getNextBatch(
-      collection,
-      query,
-      start,
-      end,
-      projection,
-      findOptions
-    )
-    if (nextBatch.length > 0) {
-      end = nextBatch[nextBatch.length - 1]._id
-      updated += nextBatch.length
-
-      if (VERBOSE_LOGGING) {
-        console.log(
-          `Running update on batch with ids ${JSON.stringify(
-            nextBatch.map(entry => entry._id)
-          )}`
-        )
-      } else {
-        console.error(`Running update on batch ending ${end}`)
-      }
-
-      if (typeof update === 'function') {
-        await update(nextBatch)
-      } else {
-        await performUpdate(collection, nextBatch, update)
-      }
+  try {
+    BATCHED_UPDATE_RUNNING = true
+    ID_EDGE_PAST = await getIdEdgePast(collection)
+    if (!ID_EDGE_PAST) {
+      console.warn(
+        `The collection ${collection.collectionName} appears to be empty.`
+      )
+      return 0
     }
-    console.error(`Completed batch ending ${end}`)
-    start = end
+    refreshGlobalOptionsForBatchedUpdate(batchedUpdateOptions)
+    const { trackProgress = async progress => console.warn(progress) } =
+      batchedUpdateOptions
+
+    findOptions = findOptions || {}
+    findOptions.readPreference = READ_PREFERENCE_SECONDARY
+
+    projection = projection || { _id: 1 }
+    let nextBatch
+    let updated = 0
+    let start = BATCH_RANGE_START
+
+    while (start !== BATCH_RANGE_END) {
+      let end = getNextEnd(start)
+      nextBatch = await getNextBatch(
+        collection,
+        query,
+        start,
+        end,
+        projection,
+        findOptions
+      )
+      if (nextBatch.length > 0) {
+        end = nextBatch[nextBatch.length - 1]._id
+        updated += nextBatch.length
+
+        if (VERBOSE_LOGGING) {
+          console.log(
+            `Running update on batch with ids ${JSON.stringify(
+              nextBatch.map(entry => entry._id)
+            )}`
+          )
+        }
+        await trackProgress(
+          `Running update on batch ending ${renderObjectId(end)}`
+        )
+
+        if (typeof update === 'function') {
+          await update(nextBatch)
+        } else {
+          await performUpdate(collection, nextBatch, update)
+        }
+      }
+      await trackProgress(`Completed batch ending ${renderObjectId(end)}`)
+      start = end
+    }
+    return updated
+  } finally {
+    BATCHED_UPDATE_RUNNING = false
   }
-  return updated
 }
 
 /**
@@ -277,6 +313,9 @@ function batchedUpdateWithResultHandling(
 }
 
 module.exports = {
+  READ_PREFERENCE_SECONDARY,
+  objectIdFromInput,
+  renderObjectId,
   batchedUpdate,
   batchedUpdateWithResultHandling,
 }

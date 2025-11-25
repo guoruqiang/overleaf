@@ -12,6 +12,8 @@ while true; do
   if [ -z "$FILES" ]; then
     break
   fi
+  # We want word splitting here
+  # shellcheck disable=SC2086
   node transform/cjs-to-esm/cjs-to-esm.mjs $FILES
 done
 

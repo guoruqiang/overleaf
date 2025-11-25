@@ -19,12 +19,15 @@ const config: StorybookConfig = {
   stories: [
     path.join(rootDir, 'frontend/stories/**/*.stories.{js,jsx,ts,tsx}'),
     path.join(rootDir, 'modules/**/stories/**/*.stories.{js,jsx,ts,tsx}'),
+    path.join(rootDir, 'frontend/stories/**/*.mdx'),
+    path.join(rootDir, 'modules/**/stories/**/*.mdx'),
   ],
   addons: [
     getAbsolutePath('@storybook/addon-links'),
     getAbsolutePath('@storybook/addon-essentials'),
     getAbsolutePath('@storybook/addon-interactions'),
     getAbsolutePath('@storybook/addon-a11y'),
+    getAbsolutePath('@storybook/addon-designs'),
     getAbsolutePath('@storybook/addon-webpack5-compiler-babel'),
     {
       name: getAbsolutePath('@storybook/addon-styling-webpack'),
@@ -35,14 +38,6 @@ const config: StorybookConfig = {
             use: [
               { loader: MiniCssExtractPlugin.loader },
               { loader: 'css-loader' },
-            ],
-          },
-          {
-            test: /\.less$/,
-            use: [
-              { loader: MiniCssExtractPlugin.loader },
-              { loader: 'css-loader' },
-              { loader: 'less-loader' },
             ],
           },
           {
@@ -88,6 +83,7 @@ const config: StorybookConfig = {
     return {
       ...options,
       plugins: [
+        ['@babel/plugin-proposal-decorators', { legacy: true }],
         // ensure that TSX files are transformed before other plugins run
         ['@babel/plugin-transform-typescript', { isTSX: true }],
         ...(options.plugins ?? []),
@@ -111,6 +107,11 @@ const config: StorybookConfig = {
           ...storybookConfig.resolve?.alias,
           // custom prefixes for import paths
           '@': path.join(rootDir, 'frontend/js/'),
+          '@ol-types': path.join(rootDir, 'types/'),
+          '@wf': path.join(
+            rootDir,
+            'modules/writefull/frontend/js/integration/src/'
+          ),
         },
       },
       module: {

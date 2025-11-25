@@ -1,15 +1,24 @@
 import { useTranslation, Trans } from 'react-i18next'
 import { GroupPlanSubscription } from '../../../../../../types/project/dashboard/subscription'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '@/shared/components/material-icon'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import classnames from 'classnames'
 
 type GroupPlanProps = Pick<
   GroupPlanSubscription,
   'subscription' | 'plan' | 'remainingTrialDays' | 'featuresPageURL'
 >
+
+function getFriendlyPlanName(planName: string): string {
+  if (planName.toLowerCase().includes('professional')) {
+    return 'Professional'
+  } else if (planName.toLowerCase().includes('collaborator')) {
+    return 'Standard'
+  }
+  // fallback on plan name
+  else {
+    return planName
+  }
+}
 
 function GroupPlan({
   featuresPageURL,
@@ -18,62 +27,49 @@ function GroupPlan({
   remainingTrialDays,
 }: GroupPlanProps) {
   const { t } = useTranslation()
+  const planNameComponent = <strong translate="no" />
+  const friendlyPlanName = getFriendlyPlanName(plan.name)
   const currentPlanLabel =
     remainingTrialDays >= 0 ? (
       remainingTrialDays === 1 ? (
-        <Trans i18nKey="trial_last_day" components={{ b: <strong /> }} />
+        <Trans i18nKey="trial_last_day" components={{ b: planNameComponent }} />
       ) : (
         <Trans
           i18nKey="trial_remaining_days"
-          components={{ b: <strong /> }}
+          components={{ b: planNameComponent }}
           values={{ days: remainingTrialDays }}
           shouldUnescape
           tOptions={{ interpolation: { escapeValue: true } }}
         />
       )
     ) : (
-      <Trans i18nKey="premium_plan_label" components={{ b: <strong /> }} />
+      <Trans
+        i18nKey="premium_plan_label"
+        components={{ b: planNameComponent }}
+      />
     )
 
   return (
     <>
-      <span
-        className={classnames(
-          'current-plan-label',
-          bsVersion({ bs5: 'd-md-none', bs3: 'visible-xs' })
-        )}
-      >
-        {currentPlanLabel}
-      </span>
+      <span className="current-plan-label d-md-none">{currentPlanLabel}</span>
       <OLTooltip
         description={
           subscription.teamName != null
             ? t('group_plan_with_name_tooltip', {
-                plan: plan.name,
+                plan: friendlyPlanName,
                 groupName: subscription.teamName,
               })
-            : t('group_plan_tooltip', { plan: plan.name })
+            : t('group_plan_tooltip', { plan: friendlyPlanName })
         }
         id="group-plan"
         overlayProps={{ placement: 'bottom' }}
       >
         <a
           href={featuresPageURL}
-          className={classnames(
-            'current-plan-label',
-            bsVersion({
-              bs5: 'd-none d-md-inline-block',
-              bs3: 'hidden-xs',
-            })
-          )}
+          className="current-plan-label d-none d-md-inline-block"
         >
           {currentPlanLabel}&nbsp;
-          <BootstrapVersionSwitcher
-            bs3={<span className="info-badge" />}
-            bs5={
-              <MaterialIcon type="info" className="current-plan-label-icon" />
-            }
-          />
+          <MaterialIcon type="info" className="current-plan-label-icon" />
         </a>
       </OLTooltip>
     </>

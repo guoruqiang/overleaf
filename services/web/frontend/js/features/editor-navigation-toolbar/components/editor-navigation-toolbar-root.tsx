@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react'
 import ToolbarHeader from './toolbar-header'
 import { useEditorContext } from '../../../shared/context/editor-context'
+import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { useChatContext } from '../../chat/context/chat-context'
 import { useLayoutContext } from '../../../shared/context/layout-context'
 import { useProjectContext } from '../../../shared/context/project-context'
 import * as eventTracking from '../../../infrastructure/event-tracking'
 import { Doc } from '../../../../../types/doc'
+import { OnlineUser } from '@/features/ide-react/context/online-users-context'
 
 function isOpentoString(open: boolean) {
   return open ? 'open' : 'close'
@@ -17,7 +19,7 @@ const EditorNavigationToolbarRoot = React.memo(
     openDoc,
     openShareProjectModal,
   }: {
-    onlineUsersArray: any[]
+    onlineUsersArray: OnlineUser[]
     openDoc: (doc: Doc, { gotoLine }: { gotoLine: number }) => void
     openShareProjectModal: () => void
   }) {
@@ -26,12 +28,10 @@ const EditorNavigationToolbarRoot = React.memo(
       features: { trackChangesVisible },
     } = useProjectContext()
 
-    const {
-      cobranding,
-      isRestrictedTokenMember,
-      renameProject,
-      permissionsLevel,
-    } = useEditorContext()
+    const { cobranding, isRestrictedTokenMember, renameProject } =
+      useEditorContext()
+
+    const { permissionsLevel } = useIdeReactContext()
 
     const {
       chatIsOpen,
@@ -56,7 +56,7 @@ const EditorNavigationToolbarRoot = React.memo(
     }, [chatIsOpen, setChatIsOpen, markMessagesAsRead])
 
     const toggleReviewPanelOpen = useCallback(
-      event => {
+      (event: any) => {
         event.preventDefault()
         eventTracking.sendMB('navigation-clicked-review', {
           action: isOpentoString(!reviewPanelOpen),
@@ -93,7 +93,7 @@ const EditorNavigationToolbarRoot = React.memo(
     }, [setLeftMenuShown])
 
     const goToUser = useCallback(
-      user => {
+      (user: OnlineUser) => {
         if (user.doc && typeof user.row === 'number') {
           openDoc(user.doc, { gotoLine: user.row + 1 })
         }
@@ -103,7 +103,6 @@ const EditorNavigationToolbarRoot = React.memo(
 
     return (
       <ToolbarHeader
-        // @ts-ignore: TODO(convert ToolbarHeader to TSX)
         cobranding={cobranding}
         onShowLeftMenuClick={onShowLeftMenuClick}
         chatIsOpen={chatIsOpen}

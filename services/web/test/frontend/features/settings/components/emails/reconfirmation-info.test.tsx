@@ -13,7 +13,7 @@ import ReconfirmationInfo from '../../../../../../frontend/js/features/settings/
 import { ssoUserData } from '../../fixtures/test-user-email-data'
 import { UserEmailData } from '../../../../../../types/user-email'
 import { UserEmailsProvider } from '../../../../../../frontend/js/features/settings/context/user-email-context'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 import getMeta from '@/utils/meta'
 
 function renderReconfirmationInfo(data: UserEmailData) {
@@ -25,24 +25,18 @@ function renderReconfirmationInfo(data: UserEmailData) {
 }
 
 describe('<ReconfirmationInfo/>', function () {
-  let assignStub: sinon.SinonStub
-
   beforeEach(function () {
     Object.assign(getMeta('ol-ExposedSettings'), {
       samlInitPath: '/saml',
     })
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    assignStub = sinon.stub()
-    this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-      assign: assignStub,
-      replace: sinon.stub(),
-      reload: sinon.stub(),
-    })
+    this.locationWrapperSandbox = sinon.createSandbox()
+    this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
   })
 
   afterEach(function () {
-    fetchMock.reset()
-    this.locationStub.restore()
+    fetchMock.removeRoutes().clearHistory()
+    this.locationWrapperSandbox.restore()
   })
 
   describe('reconfirmed via SAML', function () {
@@ -82,7 +76,9 @@ describe('<ReconfirmationInfo/>', function () {
       screen.getByText(
         /Please take a moment to confirm your institutional email address/
       )
-      screen.getByRole('link', { name: 'Learn more' })
+      screen.getByRole('link', {
+        name: 'Learn more about institutional email reconfirmation.',
+      })
       expect(screen.queryByText(/add a new primary email address/)).to.not.exist
     })
 
@@ -103,7 +99,7 @@ describe('<ReconfirmationInfo/>', function () {
       it('redirects to SAML flow', async function () {
         renderReconfirmationInfo(inReconfirmUserData)
         const confirmButton = screen.getByRole('button', {
-          name: 'Confirm Affiliation',
+          name: 'Confirm affiliation',
         }) as HTMLButtonElement
 
         await waitFor(() => {
@@ -114,9 +110,9 @@ describe('<ReconfirmationInfo/>', function () {
         await waitFor(() => {
           expect(confirmButton.disabled).to.be.true
         })
-        sinon.assert.calledOnce(assignStub)
+        sinon.assert.calledOnce(this.locationWrapperStub.assign)
         sinon.assert.calledWithMatch(
-          assignStub,
+          this.locationWrapperStub.assign,
           '/saml/init?university_id=2&reconfirm=/user/settings'
         )
       })
@@ -127,13 +123,13 @@ describe('<ReconfirmationInfo/>', function () {
         Object.assign(getMeta('ol-ExposedSettings'), {
           hasSamlFeature: false,
         })
-        fetchMock.post('/user/emails/send-reconfirmation', 200)
+        fetchMock.post('/user/emails/send-confirmation-code', 200)
       })
 
       it('sends and resends confirmation email', async function () {
         renderReconfirmationInfo(inReconfirmUserData)
         const confirmButton = (await screen.findByRole('button', {
-          name: 'Confirm Affiliation',
+          name: 'Send confirmation code',
         })) as HTMLButtonElement
 
         await waitFor(() => {
@@ -144,25 +140,29 @@ describe('<ReconfirmationInfo/>', function () {
         await waitFor(() => {
           expect(confirmButton.disabled).to.be.true
         })
-        expect(fetchMock.called()).to.be.true
+        expect(fetchMock.callHistory.called()).to.be.true
 
         // the confirmation text should now be displayed
-        await screen.findByText(/Please check your email inbox to confirm/)
+        await screen.findByLabelText(
+          /Enter the 6-digit code sent to sso-prof@sso-university\.edu/
+        )
 
         // try the resend button
-        fetchMock.resetHistory()
+        fetchMock.clearHistory()
         const resendButton = await screen.findByRole('button', {
-          name: 'Resend confirmation email',
+          name: /Resend confirmation code/,
         })
 
         fireEvent.click(resendButton)
 
         // commented out as it's already gone by this point
         // await screen.findByText(/Sending/)
-        expect(fetchMock.called()).to.be.true
-        await waitForElementToBeRemoved(() => screen.getByText(/Sending/))
+        expect(fetchMock.callHistory.called()).to.be.true
+        await waitForElementToBeRemoved(() =>
+          screen.getByText('Resending confirmation code')
+        )
         await screen.findByRole('button', {
-          name: 'Resend confirmation email',
+          name: 'Resend confirmation code',
         })
       })
     })

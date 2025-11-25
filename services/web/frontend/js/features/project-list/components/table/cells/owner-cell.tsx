@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import Icon from '../../../../../shared/components/icon'
 import { getOwnerName } from '../../../util/project'
 import { Project } from '../../../../../../../types/project/dashboard/api'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '@/shared/components/material-icon'
 
 type LinkSharingIconProps = {
@@ -28,21 +26,10 @@ function LinkSharingIcon({
       {/* OverlayTrigger won't fire unless icon is wrapped in a span */}
       <span className={className}>
         {prependSpace ? ' ' : ''}
-        <BootstrapVersionSwitcher
-          bs3={
-            <Icon
-              type="link"
-              className="small"
-              accessibilityLabel={t('link_sharing')}
-            />
-          }
-          bs5={
-            <MaterialIcon
-              type="link"
-              className="align-text-bottom"
-              accessibilityLabel={t('link_sharing')}
-            />
-          }
+        <MaterialIcon
+          type="link"
+          className="align-text-bottom"
+          accessibilityLabel={t('link_sharing')}
         />
       </span>
     </OLTooltip>
@@ -60,7 +47,7 @@ export default function OwnerCell({ project }: OwnerCellProps) {
 
   return (
     <>
-      {ownerName === 'You' ? t('you') : ownerName}
+      <span translate="no">{ownerName === 'You' ? t('you') : ownerName}</span>
       {project.source === 'token' && (
         <LinkSharingIcon project={project} prependSpace={!!project.owner} />
       )}

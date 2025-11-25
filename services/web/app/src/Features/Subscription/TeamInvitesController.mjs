@@ -1,20 +1,21 @@
 import settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
-import TeamInvitesHandler from './TeamInvitesHandler.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import SubscriptionLocator from './SubscriptionLocator.js'
-import ErrorController from '../Errors/ErrorController.js'
-import EmailHelper from '../Helpers/EmailHelper.js'
-import UserGetter from '../User/UserGetter.js'
+import TeamInvitesHandler from './TeamInvitesHandler.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import SubscriptionLocator from './SubscriptionLocator.mjs'
+import SubscriptionHelper from './SubscriptionHelper.mjs'
+import ErrorController from '../Errors/ErrorController.mjs'
+import EmailHelper from '../Helpers/EmailHelper.mjs'
+import UserGetter from '../User/UserGetter.mjs'
 import { expressify } from '@overleaf/promise-utils'
-import HttpErrorHandler from '../Errors/HttpErrorHandler.js'
-import PermissionsManager from '../Authorization/PermissionsManager.js'
-import EmailHandler from '../Email/EmailHandler.js'
+import HttpErrorHandler from '../Errors/HttpErrorHandler.mjs'
+import PermissionsManager from '../Authorization/PermissionsManager.mjs'
+import EmailHandler from '../Email/EmailHandler.mjs'
 import { RateLimiter } from '../../infrastructure/RateLimiter.js'
 import Modules from '../../infrastructure/Modules.js'
-import UserAuditLogHandler from '../User/UserAuditLogHandler.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
+import UserAuditLogHandler from '../User/UserAuditLogHandler.mjs'
+import { sanitizeSessionUserForFrontEnd } from '../../infrastructure/FrontEndUser.mjs'
 
 const rateLimiters = {
   resendGroupInvite: new RateLimiter('resend-group-invite', {
@@ -37,10 +38,15 @@ async function createInvite(req, res, next) {
   }
 
   try {
+    const auditLog = {
+      initiatorId: teamManagerId,
+      ipAddress: req.ip,
+    }
     const invitedUserData = await TeamInvitesHandler.promises.createInvite(
       teamManagerId,
       subscription,
-      email
+      email,
+      auditLog
     )
     return res.json({ user: invitedUserData })
   } catch (err) {
@@ -70,33 +76,25 @@ async function viewInvite(req, res, next) {
   const { invite, subscription } =
     await TeamInvitesHandler.promises.getInvite(token)
 
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'bootstrap-5-subscription'
-  )
-
   if (!invite) {
     return ErrorController.notFound(req, res)
   }
+
+  const groupSSOActive = (
+    await Modules.promises.hooks.fire('hasGroupSSOEnabled', subscription)
+  )?.[0]
 
   let validationStatus = new Map()
   if (userId) {
     const personalSubscription =
       await SubscriptionLocator.promises.getUsersSubscription(userId)
 
-    const hasIndividualRecurlySubscription =
-      personalSubscription &&
-      personalSubscription.groupPlan === false &&
-      personalSubscription.recurlyStatus?.state !== 'canceled' &&
-      personalSubscription.recurlySubscription_id &&
-      personalSubscription.recurlySubscription_id !== ''
+    const hasIndividualPaidSubscription =
+      SubscriptionHelper.isIndividualActivePaidSubscription(
+        personalSubscription
+      )
 
-    const groupSSOActive = (
-      await Modules.promises.hooks.fire('hasGroupSSOEnabled', subscription)
-    )?.[0]
-
-    if (subscription?.groupPolicy) {
+    if (subscription?.managedUsersEnabled) {
       if (!subscription.populated('groupPolicy')) {
         // eslint-disable-next-line no-restricted-syntax
         await subscription.populate('groupPolicy')
@@ -135,6 +133,9 @@ async function viewInvite(req, res, next) {
         logger.error({ err }, 'error getting subscription admin email')
       }
 
+      const usersSubscription =
+        await SubscriptionLocator.promises.getUserSubscriptionStatus(userId)
+
       return res.render('subscriptions/team/invite-managed', {
         inviterName: invite.inviterName,
         inviteToken: invite.token,
@@ -143,7 +144,8 @@ async function viewInvite(req, res, next) {
         currentManagedUserAdminEmail,
         groupSSOActive,
         subscriptionId: subscription._id.toString(),
-        user: sessionUser,
+        user: sanitizeSessionUserForFrontEnd(sessionUser),
+        usersSubscription,
       })
     } else {
       let currentManagedUserAdminEmail
@@ -157,13 +159,13 @@ async function viewInvite(req, res, next) {
       return res.render('subscriptions/team/invite', {
         inviterName: invite.inviterName,
         inviteToken: invite.token,
-        hasIndividualRecurlySubscription,
+        hasIndividualPaidSubscription,
         expired: req.query.expired,
         userRestrictions: Array.from(req.userRestrictions || []),
         currentManagedUserAdminEmail,
         groupSSOActive,
         subscriptionId: subscription._id.toString(),
-        user: sessionUser,
+        user: sanitizeSessionUserForFrontEnd(sessionUser),
       })
     }
   } else {
@@ -178,6 +180,7 @@ async function viewInvite(req, res, next) {
       accountExists: userByEmail != null,
       emailAddress: invite.email,
       user: { id: null },
+      groupSSOActive,
     })
   }
 }
@@ -189,12 +192,6 @@ async function viewInvites(req, res, next) {
 
   const teamInvites = groupSubscriptions.map(groupSubscription =>
     groupSubscription.teamInvites.find(invite => invite.email === user.email)
-  )
-
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'bootstrap-5-subscription'
   )
 
   return res.render('subscriptions/team/group-invites', {
@@ -209,7 +206,8 @@ async function acceptInvite(req, res, next) {
 
   const subscription = await TeamInvitesHandler.promises.acceptInvite(
     token,
-    userId
+    userId,
+    req.ip
   )
   const groupSSOActive = (
     await Modules.promises.hooks.fire('hasGroupSSOEnabled', subscription)

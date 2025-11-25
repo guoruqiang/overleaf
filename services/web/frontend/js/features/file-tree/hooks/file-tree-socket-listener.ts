@@ -6,8 +6,11 @@ import { useFileTreeSelectable } from '../contexts/file-tree-selectable'
 import { findInTree, findInTreeOrThrow } from '../util/find-in-tree'
 import { useIdeContext } from '@/shared/context/ide-context'
 import { useSnapshotContext } from '@/features/ide-react/context/snapshot-context'
+import { FileTreeFindResult } from '@/features/ide-react/types/file-tree'
 
-export function useFileTreeSocketListener(onDelete: (entity: any) => void) {
+export function useFileTreeSocketListener(
+  onDelete: (entity: FileTreeFindResult, isFileRestore?: boolean) => void
+) {
   const user = useUserContext()
   const {
     dispatchRename,
@@ -25,7 +28,7 @@ export function useFileTreeSocketListener(onDelete: (entity: any) => void) {
 
   const selectEntityIfCreatedByUser = useCallback(
     // hack to automatically re-open refreshed linked files
-    (entityId, entityName, userId) => {
+    (entityId: any, entityName: any, userId: string) => {
       // If the created entity's user exists and is the current user
       if (userId && user?.id === userId) {
         // And we're expecting a refreshed socket for this entity
@@ -53,7 +56,10 @@ export function useFileTreeSocketListener(onDelete: (entity: any) => void) {
 
   useEffect(() => {
     if (fileTreeFromHistory) return
-    function handleDispatchDelete(entityId: string) {
+    function handleDispatchDelete(
+      entityId: string,
+      origin?: { kind: string } | string
+    ) {
       const entity = findInTree(fileTreeData, entityId)
       unselect(entityId)
       if (selectedEntityParentIds.has(entityId)) {
@@ -70,8 +76,12 @@ export function useFileTreeSocketListener(onDelete: (entity: any) => void) {
         }
       }
       dispatchDelete(entityId)
-      if (onDelete) {
-        onDelete(entity)
+      if (onDelete && entity) {
+        const isFileRestore =
+          typeof origin === 'object' &&
+          (origin.kind === 'file-restore' || origin.kind === 'project-restore')
+
+        onDelete(entity, isFileRestore)
       }
     }
     if (socket) socket.on('removeEntity', handleDispatchDelete)

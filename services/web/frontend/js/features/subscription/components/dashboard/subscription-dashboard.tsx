@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import ContactSupport from './contact-support-for-custom-subscription'
 import GroupSubscriptionMemberships from './group-subscription-memberships'
 import InstitutionMemberships from './institution-memberships'
@@ -10,10 +10,12 @@ import ManagedInstitutions from './managed-institutions'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
 import getMeta from '../../../../utils/meta'
 import PremiumFeaturesLink from './premium-features-link'
-import OLPageContentCard from '@/features/ui/components/ol/ol-page-content-card'
-import OLRow from '@/features/ui/components/ol/ol-row'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
+import OLRow from '@/shared/components/ol/ol-row'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import WritefullManagedBundleAddOn from './states/active/change-plan/modals/writefull-bundle-management-modal'
+import RedirectAlerts from './redirect-alerts'
 
 function SubscriptionDashboard() {
   const { t } = useTranslation()
@@ -21,9 +23,14 @@ function SubscriptionDashboard() {
     hasDisplayedSubscription,
     hasSubscription,
     hasValidActiveSubscription,
+    personalSubscription,
   } = useSubscriptionDashboardContext()
 
+  const hasAiAssistViaWritefull = getMeta('ol-hasAiAssistViaWritefull')
   const fromPlansPage = getMeta('ol-fromPlansPage')
+  const hasRedirectedPaymentError = Boolean(
+    getMeta('ol-subscriptionPaymentErrorCode')
+  )
 
   return (
     <div className="container">
@@ -37,9 +44,26 @@ function SubscriptionDashboard() {
               type="warning"
             />
           )}
+          {hasRedirectedPaymentError && (
+            <OLNotification
+              className="mb-4"
+              aria-live="polite"
+              content={
+                <Trans
+                  i18nKey="payment_error_generic"
+                  components={[
+                    /* eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key */
+                    <a href="/contact" target="_blank" />,
+                  ]}
+                />
+              }
+              type="error"
+            />
+          )}
+          <RedirectAlerts />
           <OLPageContentCard>
             <div className="page-header">
-              <h1>{t('your_subscription')}</h1>
+              <h1>{t('your_subscriptions')}</h1>
             </div>
 
             <div>
@@ -49,7 +73,15 @@ function SubscriptionDashboard() {
               <ManagedPublishers />
               <GroupSubscriptionMemberships />
               <InstitutionMemberships />
-              {hasValidActiveSubscription && <PremiumFeaturesLink />}
+              {!personalSubscription && hasAiAssistViaWritefull && (
+                <div className="mb-4">
+                  <h2 className="h3 fw-bold">{t('add_ons')}</h2>
+                  <WritefullManagedBundleAddOn />
+                </div>
+              )}
+              {hasValidActiveSubscription && (
+                <PremiumFeaturesLink subscription={personalSubscription} />
+              )}
               {!hasDisplayedSubscription &&
                 (hasSubscription ? <ContactSupport /> : <FreePlan />)}
             </div>

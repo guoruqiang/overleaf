@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next'
 import Notification from '../notification'
 import getMeta from '../../../../../utils/meta'
 import useAsyncDismiss from '../hooks/useAsyncDismiss'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 function Institution() {
   const { t } = useTranslation()
@@ -85,6 +85,49 @@ function Institution() {
                     shouldUnescape
                     tOptions={{ interpolation: { escapeValue: true } }}
                   />
+                }
+              />
+            )}
+            {templateKey === 'notification_group_sso_linked' && (
+              <Notification
+                type="info"
+                onDismiss={() => id && handleDismiss(id)}
+                content={
+                  <Trans
+                    i18nKey="account_has_been_link_to_group_account"
+                    components={{ b: <b /> }}
+                    values={{ appName, email, institutionName }}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                  />
+                }
+              />
+            )}
+            {templateKey ===
+              'notification_account_created_via_group_domain_capture_and_managed_users_enabled' && (
+              <Notification
+                type="info"
+                onDismiss={() => id && handleDismiss(id)}
+                content={
+                  <>
+                    <Trans
+                      i18nKey="account_managed_by_group_teamname"
+                      components={
+                        /* eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key */
+                        [<strong />]
+                      }
+                      values={{ appName, email, teamName: institutionName }}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                    />
+                    &nbsp;
+                    <a
+                      href="/learn/how-to/Understanding_Managed_Overleaf_Accounts"
+                      target="_blank"
+                    >
+                      {t('read_more_about_managed_users')}
+                    </a>
+                  </>
                 }
               />
             )}

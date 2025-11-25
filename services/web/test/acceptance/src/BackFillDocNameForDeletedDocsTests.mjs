@@ -1,9 +1,10 @@
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
 import { expect } from 'chai'
 import logger from '@overleaf/logger'
 import { db, ObjectId } from '../../../app/src/infrastructure/mongodb.js'
-import UserHelper from './helpers/User.js'
+import UserHelper from './helpers/User.mjs'
+import { renderObjectId } from '@overleaf/mongo-utils/batchedUpdate.js'
 
 const User = UserHelper.promises
 
@@ -62,14 +63,11 @@ describe('BackFillDocNameForDeletedDocs', function () {
     await setDeletedDocs(projectId2, deletedDocs2)
   })
 
-  async function runScript(args = []) {
+  async function runScript() {
     let result
     try {
       result = await promisify(exec)(
-        ['LET_USER_DOUBLE_CHECK_INPUTS_FOR=1']
-          .concat(['node', 'scripts/back_fill_doc_name_for_deleted_docs.mjs'])
-          .concat(args)
-          .join(' ')
+        'cd ../../tools/migrations && east migrate -t saas --force 20210727150530_ce_sp_backfill_deleted_docs'
       )
     } catch (error) {
       // dump details like exit code, stdErr and stdOut
@@ -78,7 +76,9 @@ describe('BackFillDocNameForDeletedDocs', function () {
     }
     const { stderr: stdErr } = result
 
-    expect(stdErr).to.include(`Completed batch ending ${projectId2}`)
+    expect(stdErr).to.include(
+      `Completed batch ending ${renderObjectId(projectId2)}`
+    )
   }
 
   function checkDocsBackFilled() {
@@ -92,20 +92,9 @@ describe('BackFillDocNameForDeletedDocs', function () {
     })
   }
 
-  describe('back fill only', function () {
-    beforeEach('run script', runScript)
-
-    checkDocsBackFilled()
-
-    it('should leave the deletedDocs as is', async function () {
-      expect(await getDeletedDocs(projectId1)).to.deep.equal(deletedDocs1)
-      expect(await getDeletedDocs(projectId2)).to.deep.equal(deletedDocs2)
-    })
-  })
-
   describe('back fill and cleanup', function () {
     beforeEach('run script with cleanup flag', async function () {
-      await runScript(['--perform-cleanup'])
+      await runScript()
     })
 
     checkDocsBackFilled()

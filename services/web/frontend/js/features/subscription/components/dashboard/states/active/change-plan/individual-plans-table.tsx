@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plan } from '../../../../../../../../../types/subscription/plan'
-import Icon from '../../../../../../../shared/components/icon'
+import MaterialIcon from '@/shared/components/material-icon'
 import { useSubscriptionDashboardContext } from '../../../../../context/subscription-dashboard-context'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 function ChangeToPlanButton({ planCode }: { planCode: string }) {
   const { t } = useTranslation()
@@ -20,7 +20,7 @@ function ChangeToPlanButton({ planCode }: { planCode: string }) {
   )
 }
 
-function KeepCurrentPlanButton({ plan }: { plan: Plan }) {
+function KeepCurrentPlanButton() {
   const { t } = useTranslation()
   const { handleOpenModal } = useSubscriptionDashboardContext()
 
@@ -43,19 +43,21 @@ function ChangePlanButton({ plan }: { plan: Plan }) {
     plan.planCode === personalSubscription.planCode.split('_')[0]
 
   if (isCurrentPlanForUser && personalSubscription.pendingPlan) {
-    return <KeepCurrentPlanButton plan={plan} />
+    return <KeepCurrentPlanButton />
   } else if (isCurrentPlanForUser && !personalSubscription.pendingPlan) {
     return (
-      <b>
-        <Icon type="check" /> {t('your_plan')}
+      <b className="d-inline-flex align-items-center">
+        <MaterialIcon type="check" />
+        &nbsp;{t('your_plan')}
       </b>
     )
   } else if (
     personalSubscription?.pendingPlan?.planCode?.split('_')[0] === plan.planCode
   ) {
     return (
-      <b>
-        <Icon type="check" /> {t('your_new_plan')}
+      <b className="d-inline-flex align-items-center">
+        <MaterialIcon type="check" />
+        &nbsp;{t('your_new_plan')}
       </b>
     )
   } else {

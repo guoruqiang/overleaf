@@ -1,6 +1,5 @@
 import { StateEffect, StateField } from '@codemirror/state'
 import { EditorView, showPanel } from '@codemirror/view'
-import { isBootstrap5 } from '@/features/utils/bootstrap-5'
 
 const toggleToolbarEffect = StateEffect.define<boolean>()
 const toolbarState = StateField.define<boolean>({
@@ -19,13 +18,16 @@ const toolbarState = StateField.define<boolean>({
 export function createToolbarPanel() {
   const dom = document.createElement('div')
   dom.classList.add('ol-cm-toolbar-portal')
+  dom.id = 'ol-cm-toolbar-portal'
   return { dom, top: true }
 }
 
 const toolbarTheme = EditorView.theme({
-  '.ol-cm-toolbar': {
+  '.ol-cm-toolbar-wrapper': {
     backgroundColor: 'var(--editor-toolbar-bg)',
     color: 'var(--toolbar-btn-color)',
+  },
+  '.ol-cm-toolbar': {
     flex: 1,
     display: 'flex',
     overflowX: 'hidden',
@@ -56,6 +58,26 @@ const toolbarTheme = EditorView.theme({
         borderBottomColor: 'var(--editor-toolbar-bg)',
       },
     },
+  },
+  '.ol-cm-toolbar-header': {
+    color: 'var(--toolbar-btn-color)',
+  },
+  '.ol-cm-toolbar-dropdown-divider': {
+    borderBottom: '1px solid',
+    borderColor: 'var(--toolbar-dropdown-divider-color)',
+  },
+  // here render both the icons, and hide one depending on if its dark or light mode with &.overall-theme-dark
+  '.ol-cm-toolbar-ai-sparkle-gradient': {
+    display: 'block',
+  },
+  '.ol-cm-toolbar-ai-sparkle-white': {
+    display: 'none',
+  },
+  '&.overall-theme-dark .ol-cm-toolbar-ai-sparkle-gradient': {
+    display: 'none',
+  },
+  '&.overall-theme-dark .ol-cm-toolbar-ai-sparkle-white': {
+    display: 'block',
   },
   '.ol-cm-toolbar-button-menu-popover': {
     backgroundColor: 'initial',
@@ -117,7 +139,7 @@ const toolbarTheme = EditorView.theme({
     margin: '0 1px',
     backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: isBootstrap5() ? 'var(--border-radius-base)' : '1px',
+    borderRadius: 'var(--border-radius-base)',
     lineHeight: '1',
     width: '24px',
     height: '24px',
@@ -175,7 +197,7 @@ const toolbarTheme = EditorView.theme({
     background: 'transparent',
     border: 'none',
     color: 'inherit',
-    borderRadius: isBootstrap5() ? 'var(--border-radius-base)' : '0',
+    borderRadius: 'var(--border-radius-base)',
     opacity: 0.8,
     width: '120px',
     fontSize: '13px',
@@ -216,7 +238,7 @@ const toolbarTheme = EditorView.theme({
       color: 'inherit',
     },
     '& .ol-cm-toolbar-menu': {
-      width: '120px',
+      minWidth: '120px',
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
@@ -248,9 +270,6 @@ const toolbarTheme = EditorView.theme({
         fontWeight: 'normal',
       },
     },
-  },
-  '&.overall-theme-dark .ol-cm-toolbar-table-grid-popover': {
-    color: '#fff',
   },
   '&.overall-theme-dark .ol-cm-toolbar-table-grid': {
     '& td.active': {
@@ -288,6 +307,7 @@ const toolbarTheme = EditorView.theme({
     borderRadius: '4px',
     backgroundColor: 'var(--editor-toolbar-bg)',
     pointerEvents: 'all',
+    color: 'var(--toolbar-btn-color)',
   },
   '.ol-cm-toolbar-button-menu-popover-unstyled': {
     maxWidth: 'unset',
@@ -299,8 +319,18 @@ const toolbarTheme = EditorView.theme({
   },
 })
 
+const toolbarBorderTheme = EditorView.baseTheme({
+  '&light.overall-theme-dark .cm-panels-top': {
+    borderBottom: '1px solid var(--border-divider-dark)',
+  },
+})
+
 /**
  * A panel which contains the editor toolbar, provided by a state field which allows the toolbar to be toggled,
  * and styles for the toolbar.
  */
-export const toolbarPanel = () => [toolbarState, toolbarTheme]
+export const toolbarPanel = () => [
+  toolbarState,
+  toolbarTheme,
+  toolbarBorderTheme,
+]

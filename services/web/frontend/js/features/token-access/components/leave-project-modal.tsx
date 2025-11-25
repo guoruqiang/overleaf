@@ -1,11 +1,12 @@
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLModal, {
+import OLButton from '@/shared/components/ol/ol-button'
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
-} from '@/features/ui/components/ol/ol-modal'
+  OLModalTitle,
+} from '@/shared/components/ol/ol-modal'
 import Notification from '@/shared/components/notification'
-import { Modal } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 
 type LeaveProjectModalProps = {
@@ -28,8 +29,8 @@ function LeaveProjectModal({
       id="action-project-modal"
       backdrop="static"
     >
-      <OLModalHeader closeButton>
-        <Modal.Title>{t('leave_project')}</Modal.Title>
+      <OLModalHeader>
+        <OLModalTitle>{t('leave_project')}</OLModalTitle>
       </OLModalHeader>
       <OLModalBody>
         <p>{t('about_to_leave_project')}</p>

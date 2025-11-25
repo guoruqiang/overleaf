@@ -144,7 +144,7 @@ const cursorTooltip = (view: EditorView, pos: number): Tooltip | null => {
       for (const highlight of highlights) {
         const label = document.createElement('div')
         label.classList.add('ol-cm-cursorHighlightLabel')
-        label.style.setProperty('--hue', highlight.hue)
+        label.style.setProperty('--hue', String(highlight.hue))
         label.textContent = highlight.label
         dom.appendChild(label)
       }
@@ -166,7 +166,7 @@ export const setCursorHighlights = (
 
 class CursorMarker extends RectangleMarker {
   constructor(
-    private highlight: Highlight,
+    public highlight: Highlight,
     className: string,
     left: number,
     top: number,
@@ -178,8 +178,20 @@ class CursorMarker extends RectangleMarker {
 
   draw(): HTMLDivElement {
     const element = super.draw()
-    element.style.setProperty('--hue', this.highlight.hue)
+    element.style.setProperty('--hue', String(this.highlight.hue))
     return element
+  }
+
+  update(element: HTMLDivElement, prev: CursorMarker) {
+    if (!super.update(element, prev)) {
+      return false
+    }
+    element.style.setProperty('--hue', String(this.highlight.hue))
+    return true
+  }
+
+  eq(other: CursorMarker) {
+    return super.eq(other) && this.highlight.hue === other.highlight.hue
   }
 }
 
@@ -187,7 +199,7 @@ class CursorMarker extends RectangleMarker {
 const cursorHighlightsLayer = layer({
   above: true,
   class: 'ol-cm-cursorHighlightsLayer',
-  update: (update, layer) => {
+  update: update => {
     return (
       update.docChanged ||
       update.selectionSet ||

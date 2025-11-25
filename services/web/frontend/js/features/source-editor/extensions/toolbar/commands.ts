@@ -20,6 +20,7 @@ import { snippet } from '@codemirror/autocomplete'
 import { snippets } from './snippets'
 import { minimumListDepthForSelection } from '../../utils/tree-operations/ancestors'
 import { isVisual } from '../visual/visual'
+import { sendSearchEvent } from '@/features/event-tracking/search-events'
 
 export const toggleBold = toggleRanges('\\textbf')
 export const toggleItalic = toggleRanges('\\textit')
@@ -85,7 +86,7 @@ ${(
   '\\\\\n'
 ).repeat(sizeY)}\t\\end{tabular}
 \t\\caption{Caption}
-\t\\label{tab:my_label}
+\t\\label{tab:placeholder}
 \\end{table}${suffix}`
   snippet(template)({ state, dispatch }, { label: 'Table' }, pos, pos)
   return true
@@ -151,7 +152,17 @@ export const toggleSearch: Command = view => {
   if (searchPanelOpen(view.state)) {
     closeSearchPanel(view)
   } else {
+    sendSearchEvent('search-open', {
+      searchType: 'document',
+      method: 'button',
+      location: 'toolbar',
+      mode: isVisual(view) ? 'visual' : 'source',
+    })
     openSearchPanel(view)
   }
   return true
+}
+
+export const addComment = () => {
+  window.dispatchEvent(new Event('add-new-review-comment'))
 }

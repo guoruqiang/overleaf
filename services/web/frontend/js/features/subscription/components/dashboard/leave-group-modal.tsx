@@ -4,13 +4,14 @@ import { deleteJSON } from '../../../../infrastructure/fetch-json'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
 import { useLocation } from '../../../../shared/hooks/use-location'
 import { debugConsole } from '@/utils/debugging'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLButton from '@/features/ui/components/ol/ol-button'
+} from '@/shared/components/ol/ol-modal'
+import OLButton from '@/shared/components/ol/ol-button'
 
 export const LEAVE_GROUP_MODAL_ID = 'leave-group'
 
@@ -70,13 +71,9 @@ export default function LeaveGroupModal() {
           onClick={handleConfirmLeaveGroup}
           disabled={inflight}
           isLoading={inflight}
-          bs3Props={{
-            loading: inflight
-              ? t('processing_uppercase') + '…'
-              : t('leave_now'),
-          }}
+          loadingLabel={t('processing_uppercase') + '…'}
         >
-          {t('processing_uppercase')}
+          {t('leave_now')}
         </OLButton>
       </OLModalFooter>
     </OLModal>

@@ -54,6 +54,7 @@ module.exports = CommandRunner = {
       cwd: directory,
       env,
       stdio: ['pipe', 'pipe', 'ignore'],
+      detached: true,
     })
 
     let stdout = ''
@@ -98,6 +99,10 @@ module.exports = CommandRunner = {
       return callback(err)
     }
     return callback()
+  },
+
+  canRunSyncTeXInOutputDir() {
+    return true
   },
 }
 

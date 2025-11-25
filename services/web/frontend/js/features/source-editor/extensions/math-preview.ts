@@ -1,10 +1,4 @@
-import {
-  EditorView,
-  repositionTooltips,
-  showTooltip,
-  Tooltip,
-  ViewPlugin,
-} from '@codemirror/view'
+import { EditorView, showTooltip, Tooltip, ViewPlugin } from '@codemirror/view'
 import {
   Compartment,
   EditorState,
@@ -22,20 +16,15 @@ import {
 } from '../utils/tree-operations/math'
 import { documentCommands } from '../languages/latex/document-commands'
 import { debugConsole } from '@/utils/debugging'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { nodeHasError } from '../utils/tree-operations/common'
 import { documentEnvironments } from '../languages/latex/document-environments'
+import { repositionAllTooltips } from './tooltips-reposition'
 
-const REPOSITION_EVENT = 'editor:repositionMathTooltips'
 const HIDE_TOOLTIP_EVENT = 'editor:hideMathTooltip'
 
 export const mathPreview = (enabled: boolean): Extension => {
-  if (!isSplitTestEnabled('math-preview')) {
-    return []
-  }
-
   return mathPreviewConf.of(
-    enabled ? [mathPreviewTheme, mathPreviewStateField] : []
+    enabled ? [mathPreviewTheme, mathPreviewStateField] : [mathPreviewTheme]
   )
 }
 
@@ -49,7 +38,6 @@ export const setMathPreview = (enabled: boolean): TransactionSpec => ({
 
 export const mathPreviewStateField = StateField.define<{
   tooltip: Tooltip | null
-  mathContent: HTMLDivElement | null
   hide: boolean
 }>({
   create: buildInitialState,
@@ -57,7 +45,7 @@ export const mathPreviewStateField = StateField.define<{
   update(state, tr) {
     for (const effect of tr.effects) {
       if (effect.is(hideTooltipEffect)) {
-        return { tooltip: null, hide: true, mathContent: null }
+        return { tooltip: null, hide: true }
       }
     }
 
@@ -66,19 +54,18 @@ export const mathPreviewStateField = StateField.define<{
 
       if (mathContainer) {
         if (state.hide) {
-          return { tooltip: null, hide: true, mathContent: null }
+          return { tooltip: null, hide: true }
         } else {
           const mathContent = buildTooltipContent(tr.state, mathContainer)
 
           return {
             tooltip: buildTooltip(mathContainer, mathContent),
-            mathContent,
             hide: false,
           }
         }
       }
 
-      return { tooltip: null, hide: false, mathContent: null }
+      return { tooltip: null, hide: false }
     }
 
     return state
@@ -88,19 +75,16 @@ export const mathPreviewStateField = StateField.define<{
     showTooltip.compute([field], state => state.field(field).tooltip),
 
     ViewPlugin.define(view => {
-      const listener = () => repositionTooltips(view)
       const hideTooltip = () => {
         view.dispatch({
           effects: hideTooltipEffect.of(null),
         })
       }
 
-      window.addEventListener(REPOSITION_EVENT, listener)
       window.addEventListener(HIDE_TOOLTIP_EVENT, hideTooltip)
 
       return {
         destroy() {
-          window.removeEventListener(REPOSITION_EVENT, listener)
           window.removeEventListener(HIDE_TOOLTIP_EVENT, hideTooltip)
         },
       }
@@ -164,6 +148,11 @@ function buildTooltip(
     create() {
       const dom = document.createElement('div')
       dom.classList.add('ol-cm-math-tooltip-container')
+      const innerElt = document.createElement('div')
+      innerElt.classList.add('ol-cm-math-tooltip')
+      innerElt.id = 'ol-cm-math-tooltip'
+      innerElt.appendChild(mathContent)
+      dom.appendChild(innerElt)
 
       return { dom, overlap: true, offset: { x: 0, y: 8 } }
     },
@@ -222,7 +211,7 @@ const buildTooltipContent = (
   renderMath(math.content, math.displayMode, element, definitions)
     .then(() => {
       element.style.opacity = '1'
-      window.dispatchEvent(new Event(REPOSITION_EVENT))
+      repositionAllTooltips()
     })
     .catch(error => {
       debugConsole.error(error)
@@ -235,12 +224,12 @@ const buildTooltipContent = (
  * Styles for the preview tooltip
  */
 const mathPreviewTheme = EditorView.baseTheme({
-  '&light .ol-cm-math-tooltip-container': {
+  '&light .ol-cm-math-tooltip': {
     boxShadow: '0px 2px 4px 0px #1e253029',
     border: '1px solid #e7e9ee !important',
     backgroundColor: 'white !important',
   },
-  '&dark .ol-cm-math-tooltip-container': {
+  '&dark .ol-cm-math-tooltip': {
     boxShadow: '0px 2px 4px 0px #1e253029',
     border: '1px solid #2f3a4c !important',
     backgroundColor: '#1b222c !important',

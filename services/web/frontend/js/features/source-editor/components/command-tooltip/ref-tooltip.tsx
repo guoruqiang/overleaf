@@ -19,9 +19,7 @@ import {
   TransactionSpec,
 } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import Icon from '../../../../shared/components/icon'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
 
 export const RefTooltipContent: FC = () => {
@@ -42,14 +40,12 @@ export const RefTooltipContent: FC = () => {
             // TODO: handle label not found
             if (labelNode) {
               view.dispatch(selectNode(labelNode))
+              view.focus()
             }
           }
         }}
       >
-        <BootstrapVersionSwitcher
-          bs3={<Icon type="link" fw />}
-          bs5={<MaterialIcon type="link" />}
-        />
+        <MaterialIcon type="link" />
         {t('open_target')}
       </OLButton>
     </div>

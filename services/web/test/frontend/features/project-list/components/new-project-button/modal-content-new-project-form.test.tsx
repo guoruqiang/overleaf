@@ -3,23 +3,17 @@ import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import ModalContentNewProjectForm from '../../../../../../frontend/js/features/project-list/components/new-project-button/modal-content-new-project-form'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 
 describe('<ModalContentNewProjectForm />', function () {
-  let assignStub: sinon.SinonStub
-
   beforeEach(function () {
-    assignStub = sinon.stub()
-    this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-      assign: assignStub,
-      replace: sinon.stub(),
-      reload: sinon.stub(),
-    })
+    this.locationWrapperSandbox = sinon.createSandbox()
+    this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
   })
 
   afterEach(function () {
-    this.locationStub.restore()
-    fetchMock.reset()
+    this.locationWrapperSandbox.restore()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('submits form', async function () {
@@ -40,7 +34,7 @@ describe('<ModalContentNewProjectForm />', function () {
 
     expect(createButton.getAttribute('disabled')).to.exist
 
-    fireEvent.change(screen.getByPlaceholderText('Project Name'), {
+    fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: 'Test Name' },
     })
 
@@ -48,12 +42,13 @@ describe('<ModalContentNewProjectForm />', function () {
 
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
+    const assignStub = this.locationWrapperStub.assign
     await waitFor(() => {
       sinon.assert.calledOnce(assignStub)
-      sinon.assert.calledWith(assignStub, `/project/${projectId}`)
     })
+    sinon.assert.calledWith(assignStub, `/project/${projectId}`)
   })
 
   it('shows error when project name contains "/"', async function () {
@@ -66,7 +61,7 @@ describe('<ModalContentNewProjectForm />', function () {
 
     render(<ModalContentNewProjectForm onCancel={() => {}} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Project Name'), {
+    fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: '/' },
     })
 
@@ -75,7 +70,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)
@@ -92,7 +87,7 @@ describe('<ModalContentNewProjectForm />', function () {
 
     render(<ModalContentNewProjectForm onCancel={() => {}} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Project Name'), {
+    fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: '\\' },
     })
 
@@ -101,7 +96,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)
@@ -118,7 +113,7 @@ describe('<ModalContentNewProjectForm />', function () {
 
     render(<ModalContentNewProjectForm onCancel={() => {}} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Project Name'), {
+    fireEvent.change(screen.getByLabelText('Project name'), {
       target: {
         value: `
       Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Arcu risus quis varius quam quisque id diam vel quam. Sit amet porttitor eget dolor morbi non arcu risus quis. In aliquam sem fringilla ut. Gravida cum sociis natoque penatibus. Semper risus in hendrerit gravida rutrum quisque non. Ut aliquam purus sit amet luctus venenatis. Neque ornare aenean euismod elementum nisi. Adipiscing bibendum est ultricies integer quis auctor elit. Nulla posuere sollicitudin aliquam ultrices sagittis. Nulla facilisi nullam vehicula ipsum a arcu cursus. Tristique senectus et netus et malesuada fames ac. Pulvinar pellentesque habitant morbi tristique senectus et netus et. Nisi scelerisque eu ultrices vitae auctor eu. Hendrerit gravida rutrum quisque non tellus orci. Volutpat blandit aliquam etiam erat velit scelerisque in dictum non. Donec enim diam vulputate ut pharetra sit amet aliquam id. Ullamcorper eget nulla facilisi etiam.
@@ -140,7 +135,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)

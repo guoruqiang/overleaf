@@ -1,4 +1,4 @@
-FROM node:18.20.4
+FROM node:22.18.0
 
 WORKDIR /app/scripts/translations
 

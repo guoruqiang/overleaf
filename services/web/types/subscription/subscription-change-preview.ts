@@ -1,8 +1,27 @@
+export type ImmediateCharge = {
+  subtotal: number
+  tax: number
+  total: number
+  discount: number
+  lineItems: {
+    planCode: string | null | undefined
+    description: string
+    subtotal: number
+    discount: number
+    tax: number
+    isAiAssist?: boolean
+  }[]
+}
+
 export type SubscriptionChangePreview = {
-  change: SubscriptionChange
+  change: SubscriptionChangeDescription
   currency: string
-  paymentMethod: string
-  immediateCharge: number
+  paymentMethod: string | undefined
+  netTerms: number
+  nextPlan: {
+    annual: boolean
+  }
+  immediateCharge: ImmediateCharge
   nextInvoice: {
     date: string
     plan: {
@@ -27,11 +46,34 @@ type AddOn = {
   amount: number
 }
 
-type SubscriptionChange = AddOnPurchase
+export type SubscriptionChangeDescription =
+  | AddOnPurchase
+  | AddOnUpdate
+  | GroupPlanUpgrade
+  | PremiumSubscriptionChange
 
-type AddOnPurchase = {
+export type AddOnPurchase = {
   type: 'add-on-purchase'
-  addOn: {
+  addOn: Pick<AddOn, 'code' | 'name'>
+}
+
+export type AddOnUpdate = {
+  type: 'add-on-update'
+  addOn: Pick<AddOn, 'code' | 'quantity'> & {
+    prevQuantity: AddOn['quantity']
+  }
+}
+
+export type GroupPlanUpgrade = {
+  type: 'group-plan-upgrade'
+  prevPlan: {
+    name: string
+  }
+}
+
+export type PremiumSubscriptionChange = {
+  type: 'premium-subscription'
+  plan: {
     code: string
     name: string
   }

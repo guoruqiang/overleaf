@@ -1,7 +1,8 @@
 import minimist from 'minimist'
 import mongodb from 'mongodb-legacy'
 import { db } from '../../app/src/infrastructure/mongodb.js'
-import { hashSecret } from '../../modules/oauth2-server/app/src/SecretsHelper.js'
+import { hashSecret } from '../../modules/oauth2-server/app/src/SecretsHelper.mjs'
+import { scriptRunner } from '../lib/ScriptRunner.mjs'
 
 const { ObjectId } = mongodb
 
@@ -14,10 +15,6 @@ async function main() {
     )
     if (opts.name == null) {
       console.error('Missing --name option')
-      process.exit(1)
-    }
-    if (opts.secret == null) {
-      console.error('Missing --secret option')
       process.exit(1)
     }
   } else {
@@ -38,29 +35,43 @@ async function upsertApplication(opts) {
   const key = { id: opts.id }
   const defaults = {}
   const updates = {}
+
   if (opts.name != null) {
     updates.name = opts.name
   }
+
   if (opts.secret != null) {
     updates.clientSecret = hashSecret(opts.secret)
   }
+
   if (opts.grants != null) {
     updates.grants = opts.grants
   } else {
     defaults.grants = []
   }
+
   if (opts.scopes != null) {
     updates.scopes = opts.scopes
   } else {
     defaults.scopes = []
   }
+
   if (opts.redirectUris != null) {
     updates.redirectUris = opts.redirectUris
   } else {
     defaults.redirectUris = []
   }
+
   if (opts.mongoId != null) {
     defaults._id = new ObjectId(opts.mongoId)
+  }
+
+  if (opts.enablePkce) {
+    updates.pkceEnabled = true
+  }
+
+  if (opts.disablePkce) {
+    updates.pkceEnabled = false
   }
 
   await db.oauthApplications.updateOne(
@@ -75,14 +86,21 @@ async function upsertApplication(opts) {
 
 function parseArgs() {
   const args = minimist(process.argv.slice(2), {
-    boolean: ['help'],
+    boolean: ['help', 'enable-pkce', 'disable-pkce'],
   })
+
   if (args.help) {
     usage()
     process.exit(0)
   }
+
   if (args._.length !== 1) {
     usage()
+    process.exit(1)
+  }
+
+  if (args['enable-pkce'] && args['disable-pkce']) {
+    console.error('Options --enable-pkce and --disable-pkce are exclusive')
     process.exit(1)
   }
 
@@ -94,6 +112,8 @@ function parseArgs() {
     scopes: toArray(args.scope),
     grants: toArray(args.grant),
     redirectUris: toArray(args['redirect-uri']),
+    enablePkce: args['enable-pkce'],
+    disablePkce: args['disable-pkce'],
   }
 }
 
@@ -104,11 +124,13 @@ Creates or updates an OAuth client configuration
 
 Options:
     --name            Descriptive name for the OAuth client (required for creation)
-    --secret          Client secret (required for creation)
+    --secret          Client secret
     --scope           Accepted scope (can be given more than once)
     --grant           Accepted grant type (can be given more than once)
     --redirect-uri    Accepted redirect URI (can be given more than once)
     --mongo-id        Mongo ID to use if the configuration is created (optional)
+    --enable-pkce     Enable PKCE
+    --disable-pkce    Disable PKCE
 `)
 }
 
@@ -121,7 +143,7 @@ function toArray(value) {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   process.exit(0)
 } catch (error) {
   console.error(error)

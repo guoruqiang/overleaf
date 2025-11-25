@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { LoadingUI } from '@/features/ide-react/components/loading'
 import { EditorProviders } from '../../../test/frontend/helpers/editor-providers'
-import { bsVersionDecorator } from '../../../.storybook/utils/with-bootstrap-switcher'
+import { PartialMeta } from '@/utils/meta'
 
 const meta: Meta<typeof LoadingUI> = {
   title: 'Loading Page / Loading',
@@ -18,7 +18,6 @@ const meta: Meta<typeof LoadingUI> = {
       ],
     },
     progress: { control: { type: 'range', min: 0, max: 100 } },
-    ...bsVersionDecorator.argTypes,
   },
 }
 
@@ -35,7 +34,7 @@ const errorMessages = {
 export const LoadingPage: Story = {
   render: args => {
     for (const [key, value] of Object.entries(errorMessages)) {
-      window.metaAttributesCache.set(`ol-${key}`, value)
+      window.metaAttributesCache.set(`ol-${key}` as keyof PartialMeta, value)
     }
     return (
       <EditorProviders>

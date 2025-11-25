@@ -1,5 +1,5 @@
-import ProjectEntityHandler from '../Project/ProjectEntityHandler.js'
-import DocumentUpdaterHandler from '../DocumentUpdater/DocumentUpdaterHandler.js'
+import ProjectEntityHandler from '../Project/ProjectEntityHandler.mjs'
+import DocumentUpdaterHandler from '../DocumentUpdater/DocumentUpdaterHandler.mjs'
 import packageMapping from './packageMapping.mjs'
 import { callbackify } from '@overleaf/promise-utils'
 
@@ -23,14 +23,19 @@ async function extractMetaFromDoc(lines) {
   }
 
   const labelRe = /\\label{(.{0,80}?)}/g
+  const labelOptionRe = /\blabel={?(.{0,80}?)[\s},\]]/g
   const packageRe = /^\\usepackage(?:\[.{0,80}?])?{(.{0,80}?)}/g
   const reqPackageRe = /^\\RequirePackage(?:\[.{0,80}?])?{(.{0,80}?)}/g
 
   for (const rawLine of lines) {
     const line = getNonCommentedContent(rawLine)
 
-    for (const pkg of lineMatches(labelRe, line)) {
-      docMeta.labels.push(pkg)
+    for (const label of lineMatches(labelRe, line)) {
+      docMeta.labels.push(label)
+    }
+
+    for (const label of lineMatches(labelOptionRe, line)) {
+      docMeta.labels.push(label)
     }
 
     for (const pkg of lineMatches(packageRe, line, ',')) {

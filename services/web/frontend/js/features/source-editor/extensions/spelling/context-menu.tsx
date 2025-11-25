@@ -1,12 +1,11 @@
+import { createRoot } from 'react-dom/client'
 import {
   StateField,
   StateEffect,
-  EditorSelection,
   Prec,
+  EditorSelection,
 } from '@codemirror/state'
 import { EditorView, showTooltip, Tooltip, keymap } from '@codemirror/view'
-import { addIgnoredWord } from './ignored-words'
-import { learnWordRequest } from './backend'
 import { Word, Mark, getMarkAtPosition } from './spellchecker'
 import { debugConsole } from '@/utils/debugging'
 import {
@@ -14,9 +13,10 @@ import {
   getSpellCheckLanguage,
 } from '@/features/source-editor/extensions/spelling/index'
 import { sendMB } from '@/infrastructure/event-tracking'
-import ReactDOM from 'react-dom'
 import { SpellingSuggestions } from '@/features/source-editor/extensions/spelling/spelling-suggestions'
 import { SplitTestProvider } from '@/shared/context/split-test-context'
+import { addLearnedWord } from '@/features/source-editor/extensions/spelling/learned-words'
+import { postJSON } from '@/infrastructure/fetch-json'
 
 /*
  * The time until which a click event will be ignored, so it doesn't immediately close the spelling menu.
@@ -57,7 +57,7 @@ const handleContextMenuEvent = (event: MouseEvent, view: EditorView) => {
     return
   }
 
-  const { from, to, value } = targetMark
+  const { value } = targetMark
 
   const targetWord = value.spec.word
   if (!targetWord) {
@@ -72,7 +72,6 @@ const handleContextMenuEvent = (event: MouseEvent, view: EditorView) => {
   openingUntil = Date.now() + 100
 
   view.dispatch({
-    selection: EditorSelection.range(from, to),
     effects: showSpellingMenu.of({
       mark: targetMark,
       word: targetWord,
@@ -88,7 +87,6 @@ const handleShortcutEvent = (view: EditorView) => {
   }
 
   view.dispatch({
-    selection: EditorSelection.range(targetMark.from, targetMark.to),
     effects: showSpellingMenu.of({
       mark: targetMark,
       word: targetMark.value.spec.word,
@@ -161,7 +159,8 @@ const createSpellingSuggestionList = (word: Word) => (view: EditorView) => {
   const dom = document.createElement('div')
   dom.classList.add('ol-cm-spelling-context-menu-tooltip')
 
-  ReactDOM.render(
+  const root = createRoot(dom)
+  root.render(
     <SplitTestProvider>
       <SpellingSuggestions
         word={word}
@@ -176,10 +175,24 @@ const createSpellingSuggestionList = (word: Word) => (view: EditorView) => {
           }
         }}
         handleLearnWord={() => {
-          learnWordRequest(word)
-            .then(() => {
+          const tooltip = view.state.field(spellingMenuField)
+          if (tooltip) {
+            window.setTimeout(() => {
               view.dispatch({
-                effects: [addIgnoredWord.of(word), hideSpellingMenu.of(null)],
+                selection: EditorSelection.cursor(tooltip.end ?? tooltip.pos),
+              })
+            })
+          }
+          view.focus()
+
+          postJSON('/spelling/learn', {
+            body: {
+              word: word.text,
+            },
+          })
+            .then(() => {
+              view.dispatch(addLearnedWord(word.text), {
+                effects: hideSpellingMenu.of(null),
               })
               sendMB('spelling-word-added', {
                 language: getSpellCheckLanguage(view.state),
@@ -203,9 +216,18 @@ const createSpellingSuggestionList = (word: Word) => (view: EditorView) => {
             return
           }
 
-          view.dispatch({
-            changes: [{ from: tooltip.pos, to: tooltip.end, insert: text }],
-            effects: [hideSpellingMenu.of(null)],
+          window.setTimeout(() => {
+            const changes = view.state.changes([
+              { from: tooltip.pos, to: tooltip.end, insert: text },
+            ])
+
+            view.dispatch({
+              changes,
+              effects: [hideSpellingMenu.of(null)],
+              selection: EditorSelection.cursor(tooltip.end ?? tooltip.pos).map(
+                changes
+              ),
+            })
           })
           view.focus()
 
@@ -214,12 +236,11 @@ const createSpellingSuggestionList = (word: Word) => (view: EditorView) => {
           })
         }}
       />
-    </SplitTestProvider>,
-    dom
+    </SplitTestProvider>
   )
 
   const destroy = () => {
-    ReactDOM.unmountComponentAtNode(dom)
+    root.unmount()
   }
 
   return { dom, destroy }

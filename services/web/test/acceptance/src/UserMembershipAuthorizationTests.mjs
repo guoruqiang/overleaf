@@ -1,14 +1,21 @@
 import { expect } from 'chai'
 import async from 'async'
-import User from './helpers/User.js'
-import Institution from './helpers/Institution.js'
-import Subscription from './helpers/Subscription.js'
-import Publisher from './helpers/Publisher.js'
+import User from './helpers/User.mjs'
+import Institution from './helpers/Institution.mjs'
+import Subscription from './helpers/Subscription.mjs'
+import Publisher from './helpers/Publisher.mjs'
+import sinon from 'sinon'
+import RecurlyClient from '../../../app/src/Features/Subscription/RecurlyClient.mjs'
 
 describe('UserMembershipAuthorization', function () {
   beforeEach(function (done) {
     this.user = new User()
+    sinon.stub(RecurlyClient.promises, 'getSubscription').resolves({})
     async.series([this.user.ensureUserExists.bind(this.user)], done)
+  })
+
+  afterEach(function () {
+    RecurlyClient.promises.getSubscription.restore()
   })
 
   describe('group', function () {
@@ -55,9 +62,9 @@ describe('UserMembershipAuthorization', function () {
   })
 
   describe('institution', function () {
-    beforeEach(function (done) {
+    beforeEach(async function () {
       this.institution = new Institution()
-      async.series([this.institution.ensureExists.bind(this.institution)], done)
+      await this.institution.ensureExists(this.institution)
     })
 
     describe('users management', function () {

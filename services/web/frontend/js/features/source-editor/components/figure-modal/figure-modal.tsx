@@ -1,9 +1,10 @@
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
+} from '@/shared/components/ol/ol-modal'
 import {
   FigureModalProvider,
   FigureModalSource,
@@ -25,7 +26,6 @@ import { ensureEmptyLine } from '../../extensions/toolbar/commands'
 import { useTranslation } from 'react-i18next'
 import useEventListener from '../../../../shared/hooks/use-event-listener'
 import { prepareLines } from '../../utils/prepare-lines'
-import { FeedbackBadge } from '@/shared/components/feedback-badge'
 import { FullSizeLoadingSpinner } from '@/shared/components/loading-spinner'
 
 const FigureModalBody = lazy(() => import('./figure-modal-body'))
@@ -104,7 +104,8 @@ const FigureModalContent = () => {
   const hide = useCallback(() => {
     dispatch({ source: FigureModalSource.NONE })
     view.requestMeasure()
-    view.focus()
+    // Wait for the modal to close before focusing the editor
+    window.setTimeout(() => view.focus(), 0)
   }, [dispatch, view])
 
   useEventListener(
@@ -154,7 +155,7 @@ const FigureModalContent = () => {
       dispatch({ error: String(error) })
       return
     }
-    const labelCommand = includeLabel ? '\\label{fig:enter-label}' : ''
+    const labelCommand = includeLabel ? '\\label{fig:placeholder}' : ''
     const captionCommand = includeCaption ? '\\caption{Enter Caption}' : ''
 
     if (figure) {
@@ -227,7 +228,7 @@ const FigureModalContent = () => {
       const widthArgument =
         width !== undefined ? `[width=${width}\\linewidth]` : ''
       const caption = includeCaption ? `\n\t\\caption{\${Enter Caption}}` : ''
-      const label = includeLabel ? `\n\t\\label{\${fig:enter-label}}` : ''
+      const label = includeLabel ? `\n\t\\label{\${fig:placeholder}}` : ''
 
       snippet(
         `\\begin{figure}
@@ -272,19 +273,19 @@ const FigureModalContent = () => {
     return null
   }
   return (
-    <OLModal onHide={hide} className="figure-modal" show>
-      <OLModalHeader closeButton>
+    <OLModal
+      onHide={hide}
+      className="figure-modal"
+      show
+      returnFocusOnDeactivate={false}
+    >
+      <OLModalHeader>
         <OLModalTitle>
           {helpShown
             ? t('help')
             : sourcePickerShown
               ? t('replace_figure')
               : getTitle(source)}{' '}
-          <FeedbackBadge
-            id="figure-modal-feedback"
-            url="https://forms.gle/PfEtwceYBNQ32DF4A"
-            text="Please click to give feedback about editing figures."
-          />
         </OLModalTitle>
       </OLModalHeader>
 

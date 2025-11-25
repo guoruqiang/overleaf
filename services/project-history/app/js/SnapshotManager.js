@@ -73,140 +73,18 @@ async function getRangesSnapshot(projectId, version, pathname) {
     })
   }
   if (!file.isEditable()) {
-    throw new Error('File is not editable')
+    // A binary file has no tracked changes or comments
+    return {
+      changes: [],
+      comments: [],
+    }
   }
   const historyId = await WebApiManager.promises.getHistoryId(projectId)
   await file.load('eager', HistoryStoreManager.getBlobStore(historyId))
-  const content = file.getContent()
-  if (content == null) {
-    throw new Error('Unable to read file contents')
-  }
-  const trackedChanges = file.getTrackedChanges().asSorted()
-  const comments = file.getComments().toArray()
-  const docUpdaterCompatibleTrackedChanges = []
 
-  let trackedDeletionOffset = 0
-  for (const trackedChange of trackedChanges) {
-    const isTrackedDeletion = trackedChange.tracking.type === 'delete'
-    const trackedChangeContent = content.slice(
-      trackedChange.range.start,
-      trackedChange.range.end
-    )
-    const tcContent = isTrackedDeletion
-      ? { d: trackedChangeContent }
-      : { i: trackedChangeContent }
-    docUpdaterCompatibleTrackedChanges.push({
-      op: {
-        p: trackedChange.range.start - trackedDeletionOffset,
-        ...tcContent,
-      },
-      metadata: {
-        ts: trackedChange.tracking.ts.toISOString(),
-        user_id: trackedChange.tracking.userId,
-      },
-    })
-    if (isTrackedDeletion) {
-      trackedDeletionOffset += trackedChange.range.length
-    }
-  }
-
-  //  Comments are shifted left by the length of any previous tracked deletions.
-  //  If they  overlap with a tracked deletion, they are truncated.
-  //
-  // Example:
-  //   { } comment
-  //   [ ] tracked deletion
-  //   the quic[k {b]rown [fox] jum[ps} ove]r the lazy dog
-  //   => rown  jum
-  //      starting at position 8
-  const trackedDeletions = trackedChanges.filter(
-    tc => tc.tracking.type === 'delete'
-  )
-  const docUpdaterCompatibleComments = []
-  for (const comment of comments) {
-    trackedDeletionOffset = 0
-    let trackedDeletionIndex = 0
-    if (comment.ranges.length === 0) {
-      // Translate detached comments into zero length comments at position 0
-      docUpdaterCompatibleComments.push({
-        op: {
-          p: 0,
-          c: '',
-          t: comment.id,
-          resolved: comment.resolved,
-        },
-      })
-      continue
-    }
-    for (const commentRange of comment.ranges) {
-      let commentRangeContent = ''
-      let offsetFromOverlappingRangeAtStart = 0
-      while (
-        trackedDeletionIndex < trackedDeletions.length &&
-        trackedDeletions[trackedDeletionIndex].range.start <
-          commentRange.start &&
-        trackedDeletions[trackedDeletionIndex].range.end <= commentRange.start
-      ) {
-        // Skip over tracked deletions that are before the current comment range
-        trackedDeletionOffset +=
-          trackedDeletions[trackedDeletionIndex].range.length
-        trackedDeletionIndex++
-      }
-
-      if (
-        trackedDeletions[trackedDeletionIndex]?.range.start < commentRange.start
-      ) {
-        // There's overlap with a tracked deletion, move the position left and
-        // truncate the overlap
-        offsetFromOverlappingRangeAtStart =
-          commentRange.start -
-          trackedDeletions[trackedDeletionIndex].range.start
-      }
-
-      // The position of the comment in the document after tracked deletions
-      const position =
-        commentRange.start -
-        trackedDeletionOffset -
-        offsetFromOverlappingRangeAtStart
-
-      let cursor = commentRange.start
-      while (cursor < commentRange.end) {
-        const trackedDeletion = trackedDeletions[trackedDeletionIndex]
-        if (
-          !trackedDeletion ||
-          trackedDeletion.range.start >= commentRange.end
-        ) {
-          // We've run out of relevant tracked changes
-          commentRangeContent += content.slice(cursor, commentRange.end)
-          break
-        }
-        if (trackedDeletion.range.start > cursor) {
-          // There's a gap between the current cursor and the tracked deletion
-          commentRangeContent += content.slice(
-            cursor,
-            trackedDeletion.range.start
-          )
-        }
-        // Skip to the end of the tracked delete
-        cursor = trackedDeletion.range.end
-        trackedDeletionIndex++
-        trackedDeletionOffset += trackedDeletion.range.length
-      }
-      docUpdaterCompatibleComments.push({
-        op: {
-          p: position,
-          c: commentRangeContent,
-          t: comment.id,
-          resolved: comment.resolved,
-        },
-      })
-    }
-  }
-
-  return {
-    changes: docUpdaterCompatibleTrackedChanges,
-    comments: docUpdaterCompatibleComments,
-  }
+  // Use the utility function from overleaf-editor-core
+  const { changes, comments } = Core.getDocUpdaterCompatibleRanges(file)
+  return { changes, comments }
 }
 
 /**
@@ -287,8 +165,26 @@ async function _getSnapshotAtVersion(projectId, version) {
   return snapshot
 }
 
+/**
+ * @param {string} projectId
+ * @param {string} historyId
+ * @return {Promise<Record<string, import('overleaf-editor-core').File>>}
+ */
 async function getLatestSnapshotFiles(projectId, historyId) {
-  const { snapshot } = await getLatestSnapshot(projectId, historyId)
+  const data = await HistoryStoreManager.promises.getMostRecentChunk(
+    projectId,
+    historyId
+  )
+  return await getLatestSnapshotFilesForChunk(historyId, data)
+}
+
+/**
+ * @param {string} historyId
+ * @param {{chunk: import('overleaf-editor-core/lib/types.js').RawChunk}} chunk
+ * @return {Promise<Record<string, import('overleaf-editor-core').File>>}
+ */
+async function getLatestSnapshotFilesForChunk(historyId, chunk) {
+  const { snapshot } = getLatestSnapshotFromChunk(chunk)
   const snapshotFiles = await snapshot.loadFiles(
     'lazy',
     HistoryStoreManager.getBlobStore(historyId)
@@ -296,11 +192,24 @@ async function getLatestSnapshotFiles(projectId, historyId) {
   return snapshotFiles
 }
 
+/**
+ * @param {string} projectId
+ * @param {string} historyId
+ * @return {Promise<{version: number, snapshot: import('overleaf-editor-core').Snapshot}>}
+ */
 async function getLatestSnapshot(projectId, historyId) {
   const data = await HistoryStoreManager.promises.getMostRecentChunk(
     projectId,
     historyId
   )
+  return getLatestSnapshotFromChunk(data)
+}
+
+/**
+ * @param {{chunk: import('overleaf-editor-core/lib/types.js').RawChunk}} data
+ * @return {{version: number, snapshot: import('overleaf-editor-core').Snapshot}}
+ */
+function getLatestSnapshotFromChunk(data) {
   if (data == null || data.chunk == null) {
     throw new OError('undefined chunk')
   }
@@ -314,44 +223,6 @@ async function getLatestSnapshot(projectId, historyId) {
     snapshot,
     version: chunk.getEndVersion(),
   }
-}
-
-async function getChangesSince(projectId, historyId, sinceVersion) {
-  const allChanges = []
-  let nextVersion
-  while (true) {
-    let data
-    if (nextVersion) {
-      data = await HistoryStoreManager.promises.getChunkAtVersion(
-        projectId,
-        historyId,
-        nextVersion
-      )
-    } else {
-      data = await HistoryStoreManager.promises.getMostRecentChunk(
-        projectId,
-        historyId
-      )
-    }
-    if (data == null || data.chunk == null) {
-      throw new OError('undefined chunk')
-    }
-    const chunk = Core.Chunk.fromRaw(data.chunk)
-    if (sinceVersion > chunk.getEndVersion()) {
-      throw new OError('requested version past the end')
-    }
-    const changes = chunk.getChanges()
-    if (chunk.getStartVersion() > sinceVersion) {
-      allChanges.unshift(...changes)
-      nextVersion = chunk.getStartVersion()
-    } else {
-      allChanges.unshift(
-        ...changes.slice(sinceVersion - chunk.getStartVersion())
-      )
-      break
-    }
-  }
-  return allChanges
 }
 
 async function getChangesInChunkSince(projectId, historyId, sinceVersion) {
@@ -401,35 +272,38 @@ async function _loadFilesLimit(snapshot, kind, blobStore) {
 
 // EXPORTS
 
-const getChangesSinceCb = callbackify(getChangesSince)
 const getChangesInChunkSinceCb = callbackify(getChangesInChunkSince)
 const getFileSnapshotStreamCb = callbackify(getFileSnapshotStream)
 const getProjectSnapshotCb = callbackify(getProjectSnapshot)
 const getLatestSnapshotCb = callbackify(getLatestSnapshot)
 const getLatestSnapshotFilesCb = callbackify(getLatestSnapshotFiles)
+const getLatestSnapshotFilesForChunkCb = callbackify(
+  getLatestSnapshotFilesForChunk
+)
 const getRangesSnapshotCb = callbackify(getRangesSnapshot)
 const getFileMetadataSnapshotCb = callbackify(getFileMetadataSnapshot)
 const getPathsAtVersionCb = callbackify(getPathsAtVersion)
 
 export {
-  getChangesSinceCb as getChangesSince,
+  getLatestSnapshotFromChunk,
   getChangesInChunkSinceCb as getChangesInChunkSince,
   getFileSnapshotStreamCb as getFileSnapshotStream,
   getProjectSnapshotCb as getProjectSnapshot,
   getFileMetadataSnapshotCb as getFileMetadataSnapshot,
   getLatestSnapshotCb as getLatestSnapshot,
   getLatestSnapshotFilesCb as getLatestSnapshotFiles,
+  getLatestSnapshotFilesForChunkCb as getLatestSnapshotFilesForChunk,
   getRangesSnapshotCb as getRangesSnapshot,
   getPathsAtVersionCb as getPathsAtVersion,
 }
 
 export const promises = {
-  getChangesSince,
   getChangesInChunkSince,
   getFileSnapshotStream,
   getProjectSnapshot,
   getLatestSnapshot,
   getLatestSnapshotFiles,
+  getLatestSnapshotFilesForChunk,
   getRangesSnapshot,
   getPathsAtVersion,
   getFileMetadataSnapshot,

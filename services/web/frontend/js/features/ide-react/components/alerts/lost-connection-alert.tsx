@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { secondsUntil } from '@/features/ide-react/connection/utils'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import OLButton from '@/shared/components/ol/ol-button'
 
 type LostConnectionAlertProps = {
   reconnectAt: number
@@ -40,7 +40,6 @@ export function LostConnectionAlert({
           onClick={() => tryReconnectNow()}
           size="sm"
           variant="secondary"
-          bs3Props={{ className: 'pull-right' }}
         >
           {t('try_now')}
         </OLButton>

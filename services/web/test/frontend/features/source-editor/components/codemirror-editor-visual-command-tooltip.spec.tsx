@@ -1,16 +1,30 @@
-import '../../../helpers/bootstrap-3'
-import { EditorProviders } from '../../../helpers/editor-providers'
+import {
+  EditorProviders,
+  makeEditorPropertiesProvider,
+  makeProjectProvider,
+} from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
 import { TestContainer } from '../helpers/test-container'
+import { mockProject } from '../helpers/mock-project'
 
 const mountEditor = (content: string) => {
   const scope = mockScope(content)
-  scope.editor.showVisual = true
+
+  const project = mockProject()
 
   cy.mount(
     <TestContainer>
-      <EditorProviders scope={scope}>
+      <EditorProviders
+        scope={scope}
+        providers={{
+          ProjectProvider: makeProjectProvider(project),
+          EditorPropertiesProvider: makeEditorPropertiesProvider({
+            showVisual: true,
+            showSymbolPalette: false,
+          }),
+        }}
+      >
         <CodemirrorEditor />
       </EditorProviders>
     </TestContainer>
@@ -129,19 +143,18 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
     // assert the focused command is undecorated
     cy.get('@content-line').should('have.text', '\\include{foo}')
 
-    cy.window().then(win => {
-      cy.stub(win, 'dispatchEvent').as('dispatch-event')
-    })
+    cy.contains('figures/foo.tex').click()
+    cy.get('@content-line').should('have.text', '\\include{figures/foo}')
+    cy.get('@content-line').type('{leftArrow}')
 
-    // open the target
+    // assert the unfocused command has a menu
     cy.findByRole('menu').should('have.length', 1)
-    cy.findByRole('button', { name: 'Edit file' }).click()
-    cy.get('@dispatch-event').should('have.been.calledOnce')
+    cy.findByText('Edit file')
 
     // assert the unfocused command is decorated
     cy.get('@content-line').type('{downArrow}')
     cy.findByRole('menu').should('have.length', 0)
-    cy.get('@content-line').should('have.text', '\\include{foo}')
+    cy.get('@content-line').should('have.text', '\\include{figures/foo}')
   })
 
   it('shows a tooltip for \\input', function () {
@@ -154,19 +167,18 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
     // assert the focused command is undecorated
     cy.get('@content-line').should('have.text', '\\input{foo}')
 
-    cy.window().then(win => {
-      cy.stub(win, 'dispatchEvent').as('dispatch-event')
-    })
+    cy.contains('figures/foo.tex').click()
+    cy.get('@content-line').should('have.text', '\\input{figures/foo}')
+    cy.get('@content-line').type('{leftArrow}')
 
     // open the target
     cy.findByRole('menu').should('have.length', 1)
-    cy.findByRole('button', { name: 'Edit file' }).click()
-    cy.get('@dispatch-event').should('have.been.calledOnce')
+    cy.findByRole('button', { name: 'Edit file' })
 
     // assert the unfocused command is decorated
     cy.get('@content-line').type('{downArrow}')
     cy.findByRole('menu').should('have.length', 0)
-    cy.get('@content-line').should('have.text', '\\input{foo}')
+    cy.get('@content-line').should('have.text', '\\input{figures/foo}')
   })
 
   it('shows a tooltip for \\ref', function () {

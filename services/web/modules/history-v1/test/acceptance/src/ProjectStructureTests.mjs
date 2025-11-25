@@ -1,18 +1,19 @@
 import { expect } from 'chai'
 import mongodb from 'mongodb-legacy'
 import Path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
 import Settings from '@overleaf/settings'
 import _ from 'lodash'
-import ProjectGetter from '../../../../../app/src/Features/Project/ProjectGetter.js'
-import User from '../../../../../test/acceptance/src/helpers/User.js'
-import MockDocUpdaterApiClass from '../../../../../test/acceptance/src/mocks/MockDocUpdaterApi.js'
+import ProjectGetter from '../../../../../app/src/Features/Project/ProjectGetter.mjs'
+import User from '../../../../../test/acceptance/src/helpers/User.mjs'
+import MockDocUpdaterApiClass from '../../../../../test/acceptance/src/mocks/MockDocUpdaterApi.mjs'
 
 const { ObjectId } = mongodb
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const FILES_PATH = Path.join(__dirname, '../../../../../test/acceptance/files')
+const FILES_PATH = Path.join(
+  import.meta.dirname,
+  '../../../../../test/acceptance/files'
+)
 
 let MockDocUpdaterApi
 
@@ -208,7 +209,8 @@ describe('ProjectStructureChanges', function () {
       expect(updates[2].type).to.equal('add-file')
       expect(updates[2].userId).to.equal(owner._id)
       expect(updates[2].pathname).to.equal('/frog.jpg')
-      expect(updates[2].url).to.be.a('string')
+      expect(updates[2].url).to.not.exist
+      expect(updates[2].createdBlob).to.be.true
       expect(version).to.equal(3)
     })
   })
@@ -256,7 +258,8 @@ describe('ProjectStructureChanges', function () {
       expect(updates[2].type).to.equal('add-file')
       expect(updates[2].userId).to.equal(owner._id)
       expect(updates[2].pathname).to.equal('/frog.jpg')
-      expect(updates[2].url).to.be.a('string')
+      expect(updates[2].url).to.not.exist
+      expect(updates[2].createdBlob).to.be.true
       expect(version).to.equal(1)
     })
   })
@@ -326,7 +329,8 @@ describe('ProjectStructureChanges', function () {
       expect(updates[1].type).to.equal('add-file')
       expect(updates[1].userId).to.equal(owner._id)
       expect(updates[1].pathname).to.equal('/1pixel.png')
-      expect(updates[1].url).to.be.a('string')
+      expect(updates[1].url).to.not.exist
+      expect(updates[1].createdBlob).to.be.true
       expect(version).to.equal(1)
     })
   })
@@ -417,7 +421,8 @@ describe('ProjectStructureChanges', function () {
       expect(update.type).to.equal('add-file')
       expect(update.userId).to.equal(owner._id)
       expect(update.pathname).to.equal('/1pixel.png')
-      expect(update.url).to.be.a('string')
+      expect(update.url).to.not.exist
+      expect(update.createdBlob).to.be.true
 
       // one file upload
       verifyVersionIncremented(exampleProjectId, oldVersion, version, 1, done)
@@ -444,7 +449,8 @@ describe('ProjectStructureChanges', function () {
           expect(updates[1].type).to.equal('add-file')
           expect(updates[1].userId).to.equal(owner._id)
           expect(updates[1].pathname).to.equal('/1pixel.png')
-          expect(updates[1].url).to.be.a('string')
+          expect(updates[1].url).to.not.exist
+          expect(updates[1].createdBlob).to.be.true
 
           // two file uploads
           verifyVersionIncremented(
@@ -827,19 +833,14 @@ describe('ProjectStructureChanges', function () {
           throw error
         }
         exampleProjectId = projectId
-        fs.mkdir(Settings.path.dumpFolder, { recursive: true }, error => {
+        ProjectGetter.getProject(exampleProjectId, (error, project) => {
           if (error) {
             throw error
           }
-          ProjectGetter.getProject(exampleProjectId, (error, project) => {
-            if (error) {
-              throw error
-            }
-            MockDocUpdaterApi.reset()
-            rootFolderId = project.rootFolder[0]._id.toString()
-            oldVersion = project.version
-            done()
-          })
+          MockDocUpdaterApi.reset()
+          rootFolderId = project.rootFolder[0]._id.toString()
+          oldVersion = project.version
+          done()
         })
       })
     })
@@ -904,7 +905,8 @@ describe('ProjectStructureChanges', function () {
         expect(update.type).to.equal('add-file')
         expect(update.userId).to.equal(owner._id)
         expect(update.pathname).to.equal('/1pixel.png')
-        expect(update.url).to.be.a('string')
+        expect(update.url).to.not.exist
+        expect(update.createdBlob).to.be.true
 
         verifyVersionIncremented(exampleProjectId, oldVersion, version, 1, done)
       })
@@ -956,7 +958,8 @@ describe('ProjectStructureChanges', function () {
           expect(updates[1].type).to.equal('add-file')
           expect(updates[1].userId).to.equal(owner._id)
           expect(updates[1].pathname).to.equal('/1pixel.png')
-          expect(updates[1].url).to.be.a('string')
+          expect(updates[1].url).to.not.exist
+          expect(updates[1].createdBlob).to.be.true
 
           verifyVersionIncremented(
             exampleProjectId,

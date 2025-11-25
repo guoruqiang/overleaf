@@ -1,7 +1,7 @@
-import '../../../helpers/bootstrap-3'
 import FileTreeRoot from '../../../../../frontend/js/features/file-tree/components/file-tree-root'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
+import type { Socket } from '@/features/ide-react/connection/types/socket'
 
 describe('<FileTreeRoot/>', function () {
   beforeEach(function () {
@@ -175,50 +175,6 @@ describe('<FileTreeRoot/>', function () {
     ])
   })
 
-  it('listen to editor.openDoc', function () {
-    const rootFolder = [
-      {
-        _id: 'root-folder-id',
-        name: 'rootFolder',
-        docs: [
-          { _id: '456def', name: 'main.tex' },
-          { _id: '789ghi', name: 'other.tex' },
-        ],
-        folders: [],
-        fileRefs: [],
-      },
-    ]
-
-    cy.mount(
-      <EditorProviders
-        rootFolder={rootFolder as any}
-        projectId="123abc"
-        rootDocId="456def"
-        features={{} as any}
-        permissionsLevel="readOnly"
-      >
-        <FileTreeRoot
-          refProviders={{}}
-          setRefProviderEnabled={cy.stub()}
-          setStartedFreeTrial={cy.stub()}
-          onSelect={cy.stub()}
-          onInit={cy.stub()}
-          isConnected
-        />
-      </EditorProviders>
-    )
-
-    cy.findByRole('treeitem', { name: 'main.tex', selected: true })
-
-    // entities not found should be ignored
-    cy.document().trigger('editor.openDoc', { detail: 'not-an-id' })
-    cy.findByRole('treeitem', { name: 'main.tex', selected: true })
-
-    cy.document().trigger('editor.openDoc', { detail: '789ghi' })
-    cy.findByRole('treeitem', { name: 'main.tex', selected: false })
-    cy.findByRole('treeitem', { name: 'other.tex', selected: true })
-  })
-
   it('only shows a menu button when a single item is selected', function () {
     const rootFolder = [
       {
@@ -290,9 +246,9 @@ describe('<FileTreeRoot/>', function () {
   })
 
   describe('when deselecting files', function () {
-    let socket: SocketIOMock
+    let socket: SocketIOMock & Socket
     beforeEach(function () {
-      socket = new SocketIOMock()
+      socket = new SocketIOMock() as any
       const rootFolder = [
         {
           _id: 'root-folder-id',
@@ -372,7 +328,7 @@ describe('<FileTreeRoot/>', function () {
 
       cy.findByRole('treeitem', { name: 'abcdef.tex' }).then($itemEl => {
         cy.findByTestId('file-tree-list-root').then($rootEl => {
-          expect($itemEl.get(0).parentNode).to.equal($rootEl.get(0))
+          expect($itemEl.get(0).parentNode?.parentNode).to.equal($rootEl.get(0))
         })
       })
     })

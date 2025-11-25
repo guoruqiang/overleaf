@@ -151,20 +151,7 @@ describe('Path utils', function () {
       const preview = previewByPath(
         rootFolder,
         'test-project-id',
-        'test-folder/example.png',
-        false
-      )
-      expect(preview).to.deep.equal({
-        url: '/project/test-project-id/file/test-file-in-folder',
-        extension: 'png',
-      })
-    })
-    it('returns handles history file-tree', function () {
-      const preview = previewByPath(
-        rootFolder,
-        'test-project-id',
-        'test-folder/example.png',
-        true
+        'test-folder/example.png'
       )
       expect(preview).to.deep.equal({
         url: '/project/test-project-id/blob/42',

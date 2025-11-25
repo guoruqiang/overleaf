@@ -2,11 +2,16 @@ import { useTranslation } from 'react-i18next'
 import { LostConnectionAlert } from './lost-connection-alert'
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
 import { debugging } from '@/utils/debugging'
-import useScopeValue from '@/shared/hooks/use-scope-value'
+import { ElementType } from 'react'
 import { createPortal } from 'react-dom'
 import { useGlobalAlertsContainer } from '@/features/ide-react/context/global-alerts-context'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+const rollingBuildsUpdatedAlert: Array<{
+  import: { default: ElementType }
+  path: string
+}> = importOverleafModules('rollingBuildsUpdatedAlert')
 
 export function Alerts() {
   const { t } = useTranslation()
@@ -19,15 +24,21 @@ export function Alerts() {
   } = useConnectionContext()
   const globalAlertsContainer = useGlobalAlertsContainer()
 
-  const [synctexError] = useScopeValue('sync_tex_error')
-
   if (!globalAlertsContainer) {
     return null
   }
 
   return createPortal(
     <>
-      {connectionState.forceDisconnected ? (
+      {rollingBuildsUpdatedAlert.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
+
+      {connectionState.forceDisconnected &&
+      // hide "disconnected" banner when displaying out of sync modal
+      connectionState.error !== 'out-of-sync' ? (
         <OLNotification
           type="error"
           content={<strong>{t('disconnected')}</strong>}
@@ -45,25 +56,6 @@ export function Alerts() {
         <OLNotification
           type="warning"
           content={<strong>{t('reconnecting')}…</strong>}
-        />
-      ) : null}
-
-      {synctexError ? (
-        <OLNotification
-          type="warning"
-          content={<strong>{t('synctex_failed')}</strong>}
-          action={
-            <OLButton
-              href="/learn/how-to/SyncTeX_Errors"
-              target="_blank"
-              id="synctex-more-info-button"
-              variant="secondary"
-              size="sm"
-              bs3Props={{ className: 'alert-link-as-btn pull-right' }}
-            >
-              {t('more_info')}
-            </OLButton>
-          }
         />
       ) : null}
 

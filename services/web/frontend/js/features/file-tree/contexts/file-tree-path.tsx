@@ -10,7 +10,6 @@ import {
   pathInFolder,
 } from '@/features/file-tree/util/path'
 import { PreviewPath } from '../../../../../types/preview-path'
-import { useSnapshotContext } from '@/features/ide-react/context/snapshot-context'
 
 type FileTreePathContextValue = {
   pathInFolder: (id: string) => string | null
@@ -23,29 +22,41 @@ export const FileTreePathContext = createContext<
   FileTreePathContextValue | undefined
 >(undefined)
 
-export const FileTreePathProvider: FC = ({ children }) => {
+export const FileTreePathProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const { fileTreeData }: { fileTreeData: Folder } = useFileTreeData()
-  const { fileTreeFromHistory } = useSnapshotContext()
   const projectId = getMeta('ol-project_id')
 
   const pathInFileTree = useCallback(
-    (id: string) => pathInFolder(fileTreeData, id),
+    (id: string) => {
+      if (!fileTreeData) return null
+      return pathInFolder(fileTreeData, id)
+    },
     [fileTreeData]
   )
 
   const findEntityByPathInFileTree = useCallback(
-    (path: string) => findEntityByPath(fileTreeData, path),
+    (path: string) => {
+      if (!fileTreeData) return null
+      return findEntityByPath(fileTreeData, path)
+    },
     [fileTreeData]
   )
 
   const previewByPathInFileTree = useCallback(
-    (path: string) =>
-      previewByPath(fileTreeData, projectId, path, fileTreeFromHistory),
-    [fileTreeData, projectId, fileTreeFromHistory]
+    (path: string) => {
+      if (!fileTreeData) return null
+      return previewByPath(fileTreeData, projectId, path)
+    },
+    [fileTreeData, projectId]
   )
 
   const dirnameInFileTree = useCallback(
-    (id: string) => dirname(fileTreeData, id),
+    (id: string) => {
+      if (!fileTreeData) return null
+      return dirname(fileTreeData, id)
+    },
     [fileTreeData]
   )
 

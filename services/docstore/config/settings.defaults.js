@@ -1,5 +1,9 @@
 const http = require('node:http')
+const https = require('node:https')
+
 http.globalAgent.maxSockets = 300
+http.globalAgent.keepAlive = false
+https.globalAgent.keepAlive = false
 
 const Settings = {
   internal: {
@@ -37,7 +41,7 @@ const Settings = {
   max_doc_length: parseInt(process.env.MAX_DOC_LENGTH) || 2 * 1024 * 1024, // 2mb
 
   maxJsonRequestSize:
-    parseInt(process.env.MAX_JSON_REQUEST_SIZE) || 6 * 1024 * 1024, // 6 MB
+    parseInt(process.env.MAX_JSON_REQUEST_SIZE) || 12 * 1024 * 1024, // 6 MB
 
   unArchiveBatchSize: parseInt(process.env.UN_ARCHIVE_BATCH_SIZE, 10) || 50,
   parallelArchiveJobs: parseInt(process.env.PARALLEL_ARCHIVE_JOBS, 10) || 5,

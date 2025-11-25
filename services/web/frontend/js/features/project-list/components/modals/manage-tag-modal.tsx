@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { FormEvent, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useAsync from '../../../../shared/hooks/use-async'
 import { useRefWithAutoFocus } from '../../../../shared/hooks/use-ref-with-auto-focus'
@@ -8,19 +8,19 @@ import { Tag } from '../../../../../../app/src/Features/Tags/types'
 import { getTagColor } from '../../util/tag'
 import { ColorPicker } from '../color-picker/color-picker'
 import { debugConsole } from '@/utils/debugging'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLForm from '@/features/ui/components/ol/ol-form'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+} from '@/shared/components/ol/ol-modal'
+import OLForm from '@/shared/components/ol/ol-form'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLButton from '@/shared/components/ol/ol-button'
 import Notification from '@/shared/components/notification'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
 
 type ManageTagModalProps = {
   id: string
@@ -75,7 +75,7 @@ export function ManageTagModal({
   )
 
   const handleSubmit = useCallback(
-    e => {
+    (e: FormEvent) => {
       e.preventDefault()
       if (tag) {
         runUpdateTag(tag._id)
@@ -90,18 +90,18 @@ export function ManageTagModal({
 
   return (
     <OLModal show animation onHide={onClose} id={id} backdrop="static">
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('edit_tag')}</OLModalTitle>
       </OLModalHeader>
 
       <OLModalBody>
         <OLForm onSubmit={handleSubmit}>
-          <OLFormGroup>
-            <input
+          <OLFormGroup controlId="manage-tag-modal">
+            <OLFormLabel>{t('manage_tag')}</OLFormLabel>
+            <OLFormControl
               ref={autoFocusedRef}
               className="form-control"
               type="text"
-              placeholder="Tag Name"
               name="new-tag-name"
               value={newTagName === undefined ? (tag.name ?? '') : newTagName}
               required
@@ -125,12 +125,10 @@ export function ManageTagModal({
         <OLButton
           variant="danger"
           onClick={() => runDeleteTag(tag._id)}
-          className={bsVersion({ bs3: 'pull-left', bs5: 'me-auto' })}
+          className="me-auto"
           disabled={isDeleteLoading || isUpdateLoading}
           isLoading={isDeleteLoading}
-          bs3Props={{
-            loading: isDeleteLoading ? `${t('deleting')}…` : t('delete_tag'),
-          }}
+          loadingLabel={t('deleting')}
         >
           {t('delete_tag')}
         </OLButton>
@@ -151,15 +149,10 @@ export function ManageTagModal({
               (newTagName === tag?.name && selectedColor === getTagColor(tag))
           )}
           isLoading={isUpdateLoading}
-          bs3Props={{
-            loading: isUpdateLoading
-              ? `${t('saving')}…`
-              : t('save_or_cancel-save'),
-          }}
+          loadingLabel={t('saving')}
         >
           {t('save_or_cancel-save')}
         </OLButton>
-        <BootstrapVersionSwitcher bs3={<div className="clearfix" />} />
       </OLModalFooter>
     </OLModal>
   )

@@ -1,8 +1,9 @@
 import { promisify } from 'node:util'
 import Settings from '@overleaf/settings'
-import AdminController from '../app/src/Features/ServerAdmin/AdminController.js'
+import AdminController from '../app/src/Features/ServerAdmin/AdminController.mjs'
 import minimist from 'minimist'
 import { fileURLToPath } from 'node:url'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const args = minimist(process.argv.slice(2), {
   string: ['confirm-site-url', 'delay-in-seconds'],
@@ -60,7 +61,7 @@ async function main() {
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
-    await main()
+    await scriptRunner(main)
     console.error('Done.')
     process.exit(0)
   } catch (error) {

@@ -1,5 +1,5 @@
 const path = require('path')
-const glob = require('glob')
+const { globSync } = require('glob')
 const webpack = require('webpack')
 const CopyPlugin = require('copy-webpack-plugin')
 const WebpackAssetsManifest = require('webpack-assets-manifest')
@@ -8,7 +8,7 @@ const {
   LezerGrammarCompilerPlugin,
 } = require('./webpack-plugins/lezer-grammar-compiler')
 
-const PackageVersions = require('./app/src/infrastructure/PackageVersions')
+const PackageVersions = require('./app/src/infrastructure/PackageVersions.js')
 const invalidateBabelCacheIfNeeded = require('./frontend/macros/invalidate-babel-cache-if-needed')
 
 // Make sure that babel-macros are re-evaluated after changing the modules config
@@ -16,44 +16,37 @@ invalidateBabelCacheIfNeeded()
 
 // Generate a hash of entry points, including modules
 const entryPoints = {
-  tracing: './frontend/js/tracing.js',
-  'bootstrap-3': './frontend/js/bootstrap-3.ts',
-  'bootstrap-5': './frontend/js/bootstrap-5.ts',
-  devToolbar: './frontend/js/dev-toolbar.js',
-  'ide-detached': './frontend/js/ide-detached.js',
-  marketing: './frontend/js/marketing.js',
-  'main-style': './frontend/stylesheets/main-style.less',
-  'main-ieee-style': './frontend/stylesheets/main-ieee-style.less',
-  'main-light-style': './frontend/stylesheets/main-light-style.less',
-  'main-style-bootstrap-5':
-    './frontend/stylesheets/bootstrap-5/main-style.scss',
+  bootstrap: './frontend/js/bootstrap.ts',
+  devToolbar: './frontend/js/dev-toolbar.ts',
+  'ide-detached': './frontend/js/ide-detached.ts',
+  marketing: './frontend/js/marketing.ts',
+  'main-style': './frontend/stylesheets/main-style.scss',
+  tracking: './frontend/js/infrastructure/tracking.ts',
 }
 
 // Add entrypoints for each "page"
-glob
-  .sync(
-    path.join(__dirname, 'modules/*/frontend/js/pages/**/*.{js,jsx,ts,tsx}')
-  )
-  .forEach(page => {
-    // in: /workspace/services/web/modules/foo/frontend/js/pages/bar.js
-    // out: modules/foo/pages/bar
-    const name = path
-      .relative(__dirname, page)
-      .replace(/frontend[/]js[/]/, '')
-      .replace(/.(js|jsx|ts|tsx)$/, '')
-    entryPoints[name] = './' + path.relative(__dirname, page)
-  })
+globSync(
+  path.join(__dirname, 'modules/*/frontend/js/pages/**/*.{js,jsx,ts,tsx}')
+).forEach(page => {
+  // in: /workspace/services/web/modules/foo/frontend/js/pages/bar.js
+  // out: modules/foo/pages/bar
+  const name = path
+    .relative(__dirname, page)
+    .replace(/frontend[/]js[/]/, '')
+    .replace(/.(js|jsx|ts|tsx)$/, '')
+  entryPoints[name] = './' + path.relative(__dirname, page)
+})
 
-glob
-  .sync(path.join(__dirname, 'frontend/js/pages/**/*.{js,jsx,ts,tsx}'))
-  .forEach(page => {
-    // in: /workspace/services/web/frontend/js/pages/marketing/homepage.js
-    // out: pages/marketing/homepage
-    const name = path
-      .relative(path.join(__dirname, 'frontend/js/'), page)
-      .replace(/.(js|jsx|ts|tsx)$/, '')
-    entryPoints[name] = './' + path.relative(__dirname, page)
-  })
+globSync(
+  path.join(__dirname, 'frontend/js/pages/**/*.{js,jsx,ts,tsx}')
+).forEach(page => {
+  // in: /workspace/services/web/frontend/js/pages/marketing/homepage.ts
+  // out: pages/marketing/homepage
+  const name = path
+    .relative(path.join(__dirname, 'frontend/js/'), page)
+    .replace(/.(js|jsx|ts|tsx)$/, '')
+  entryPoints[name] = './' + path.relative(__dirname, page)
+})
 
 function getModuleDirectory(moduleName) {
   const entrypointPath = require.resolve(moduleName)
@@ -106,8 +99,6 @@ module.exports = {
     // Output as UMD bundle (allows main JS to import with CJS, AMD or global
     // style code bundles
     libraryTarget: 'umd',
-    // Name the exported variable from output bundle
-    library: ['Frontend', '[name]'],
   },
 
   optimization: {
@@ -125,6 +116,25 @@ module.exports = {
   module: {
     rules: [
       {
+        test: /\.tsx?$/,
+        include: path.resolve(
+          __dirname,
+          'modules/writefull/frontend/js/integration'
+        ),
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              configFile: path.resolve(
+                __dirname,
+                'modules/writefull/frontend/js/integration/tsconfig.json'
+              ),
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+      {
         // Pass application JS/TS files through babel-loader,
         // transpiling to targets defined in browserslist
         test: /\.([jt]sx?|[cm]js)$/,
@@ -133,6 +143,7 @@ module.exports = {
         exclude: [
           /node_modules\/(?!(react-dnd|chart\.js|@uppy|pdfjs-dist|react-resizable-panels)\/)/,
           vendorDir,
+          path.resolve(__dirname, 'modules/writefull/frontend/js/integration'),
         ],
         use: [
           {
@@ -143,7 +154,8 @@ module.exports = {
               cacheDirectory: true,
               configFile: path.join(__dirname, './babel.config.json'),
               plugins: [
-                process.env.REACT_REFRESH && 'react-refresh/babel',
+                process.env.REACT_REFRESH_ENABLED === 'true' &&
+                  'react-refresh/babel',
               ].filter(Boolean),
             },
           },
@@ -158,39 +170,11 @@ module.exports = {
         },
       },
       {
-        // Pass Less files through less-loader/css-loader/mini-css-extract-
-        // plugin (note: run in reverse order)
-        test: /\.less$/,
-        use: [
-          // Allows the CSS to be extracted to a separate .css file
-          { loader: MiniCssExtractPlugin.loader },
-          // Resolves any CSS dependencies (e.g. url())
-          { loader: 'css-loader' },
-          {
-            // Runs autoprefixer on CSS via postcss
-            loader: 'postcss-loader',
-            options: {
-              postcssOptions: {
-                plugins: ['autoprefixer'],
-              },
-            },
-          },
-          // Compile Less off the main event loop
-          {
-            loader: 'thread-loader',
-            options: {
-              // keep workers alive for dev-server, and shut them down when not needed
-              poolTimeout:
-                process.env.NODE_ENV === 'development' ? 10 * 60 * 1000 : 500,
-              // bring up more workers after they timed out
-              poolRespawn: true,
-              // limit concurrency (one per entrypoint and let the small includes queue up)
-              workers: 6,
-            },
-          },
-          // Compiles the Less syntax to CSS
-          { loader: 'less-loader' },
-        ],
+        test: /\.txt$/,
+        type: 'asset/source',
+        generator: {
+          filename: 'js/[name]-[contenthash][ext]',
+        },
       },
       {
         // Pass Sass files through sass-loader/css-loader/mini-css-extract-
@@ -235,7 +219,48 @@ module.exports = {
       {
         // Pass CSS files through css-loader & mini-css-extract-plugin (note: run in reverse order)
         test: /\.css$/i,
-        use: [MiniCssExtractPlugin.loader, 'css-loader'],
+        oneOf: [
+          {
+            // Import as a string (for Shadow DOM usage): import styles from './file.css?inline'
+            resourceQuery: /inline/,
+            use: [
+              {
+                loader: 'css-loader',
+              },
+              {
+                loader: 'postcss-loader',
+              },
+            ],
+          },
+          {
+            // CSS from writefull module - inject directly into DOM
+            include: path.resolve(__dirname, 'modules/writefull/'),
+            use: [
+              'style-loader',
+              {
+                loader: 'css-loader',
+                options: {
+                  importLoaders: 1,
+                },
+              },
+              {
+                loader: 'postcss-loader',
+                options: {
+                  postcssOptions: {
+                    config: path.resolve(
+                      __dirname,
+                      'modules/writefull/frontend/js/integration/postcss.config.js'
+                    ),
+                  },
+                },
+              },
+            ],
+          },
+          {
+            // Standard CSS processing (extracted into separate file)
+            use: [MiniCssExtractPlugin.loader, 'css-loader'],
+          },
+        ],
       },
       {
         // Load fonts
@@ -246,8 +271,8 @@ module.exports = {
         },
       },
       {
-        // Load images (static files)
-        test: /\.(svg|gif|png|jpg|pdf)$/,
+        // Load images and videos (static files)
+        test: /\.(svg|gif|png|jpg|pdf|mp4)$/,
         type: 'asset/resource',
         generator: {
           filename: 'images/[name]-[contenthash][ext]',
@@ -280,6 +305,12 @@ module.exports = {
     alias: {
       // custom prefixes for import paths
       '@': path.resolve(__dirname, './frontend/js/'),
+      '@modules': path.resolve(__dirname, './modules/'),
+      '@ol-types': path.resolve(__dirname, './types/'),
+      '@wf': path.resolve(
+        __dirname,
+        './modules/writefull/frontend/js/integration/src/'
+      ),
     },
     // symlinks: false, // enable this while using `npm link`
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json'],
@@ -373,10 +404,20 @@ module.exports = {
           context: `${dictionariesDir}/dictionaries`,
         },
         // Copy CMap files (used to provide support for non-Latin characters),
-        // fonts and images from pdfjs-dist package to build output.
+        // wasm, ICC profiles, fonts and images from pdfjs-dist package to build output.
         {
           from: 'cmaps',
           to: 'js/pdfjs-dist/cmaps',
+          context: pdfjsDir,
+        },
+        {
+          from: 'iccs',
+          to: 'js/pdfjs-dist/iccs',
+          context: pdfjsDir,
+        },
+        {
+          from: 'wasm',
+          to: 'js/pdfjs-dist/wasm',
           context: pdfjsDir,
         },
         {

@@ -3,7 +3,6 @@ import { useSelectionContext } from '../contexts/selection-context'
 import { ToolbarButton } from './toolbar-button'
 import { ToolbarButtonMenu } from './toolbar-button-menu'
 import { ToolbarDropdown, ToolbarDropdownItem } from './toolbar-dropdown'
-import MaterialIcon from '../../../../../shared/components/material-icon'
 import {
   BorderTheme,
   insertColumn,
@@ -22,7 +21,6 @@ import { useCodeMirrorViewContext } from '../../codemirror-context'
 import { useTableContext } from '../contexts/table-context'
 import { useTabularContext } from '../contexts/tabular-context'
 import { useTranslation } from 'react-i18next'
-import { FeedbackBadge } from '@/shared/components/feedback-badge'
 import classNames from 'classnames'
 
 type CaptionPosition = 'no_caption' | 'above' | 'below'
@@ -47,6 +45,8 @@ export const Toolbar = memo(function Toolbar() {
         return t('all_borders')
       case BorderTheme.NO_BORDERS:
         return t('no_borders')
+      case BorderTheme.BOOKTABS:
+        return t('booktabs')
       default:
         return t('custom_borders')
     }
@@ -203,12 +203,22 @@ export const Toolbar = memo(function Toolbar() {
           >
             {t('no_borders')}
           </ToolbarDropdownItem>
-          <div className="table-generator-border-options-coming-soon">
-            <div className="info-icon">
-              <MaterialIcon type="info" />
-            </div>
-            {t('more_options_for_border_settings_coming_soon')}
-          </div>
+          <ToolbarDropdownItem
+            id="table-generator-borders-booktabs"
+            command={() => {
+              setBorders(
+                view,
+                BorderTheme.BOOKTABS,
+                positions,
+                rowSeparators,
+                table
+              )
+            }}
+            active={table.getBorderTheme() === BorderTheme.BOOKTABS}
+            icon="border_top"
+          >
+            {t('booktabs')}
+          </ToolbarDropdownItem>
         </ToolbarDropdown>
       </div>
       <div className="table-generator-button-group">
@@ -447,22 +457,7 @@ export const Toolbar = memo(function Toolbar() {
           label={t('help')}
           command={showHelp}
         />
-        <div className="toolbar-beta-badge">
-          <FeedbackBadge
-            id="table-generator-feedback"
-            url="https://forms.gle/9dHxXPGugxEHgY3L9"
-            text={<FeedbackBadgeContent />}
-          />
-        </div>
       </div>
     </div>
   )
 })
-
-const FeedbackBadgeContent = () => (
-  <>
-    We have a new way to insert and edit tables.
-    <br />
-    Click to give feedback
-  </>
-)

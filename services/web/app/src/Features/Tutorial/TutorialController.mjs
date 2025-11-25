@@ -1,5 +1,5 @@
-import SessionManager from '../Authentication/SessionManager.js'
-import TutorialHandler from './TutorialHandler.js'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import TutorialHandler from './TutorialHandler.mjs'
 import { expressify } from '@overleaf/promise-utils'
 
 const VALID_KEYS = [
@@ -8,9 +8,24 @@ const VALID_KEYS = [
   'writefull-oauth-promotion',
   'bib-file-tpr-prompt',
   'ai-error-assistant-consent',
-  'code-editor-mode-prompt',
   'history-restore-promo',
   'us-gov-banner',
+  'us-gov-banner-fedramp',
+  'full-project-search-promo',
+  'editor-popup-ux-survey',
+  'wf-features-moved',
+  'review-mode',
+  'new-error-logs-promo',
+  'try-redesign-again-nudge-promo',
+  'write-and-cite-nudge-in-linked-file',
+  'ide-redesign-new-survey-promo',
+  'ide-redesign-beta-intro',
+  'ide-redesign-labs-user-beta-promo',
+  'rolling-compile-image-changed',
+  'groups-enterprise-banner',
+  'groups-enterprise-banner-repeat',
+  'new-editor-opt-in',
+  'new-editor-intro',
 ]
 
 async function completeTutorial(req, res, next) {

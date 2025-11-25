@@ -11,9 +11,7 @@ import {
 import { useProjectContext } from '@/shared/context/project-context'
 import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
-import { useSelectFileTreeEntity } from '@/features/ide-react/hooks/use-select-file-tree-entity'
-import useScopeValue from '@/shared/hooks/use-scope-value'
-import { BinaryFile } from '@/features/file-view/types/binary-file'
+import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import {
   FileTreeDocumentFindResult,
   FileTreeFileRefFindResult,
@@ -23,7 +21,7 @@ import { debugConsole } from '@/utils/debugging'
 import { convertFileRefToBinaryFile } from '@/features/ide-react/util/file-view'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { FileRef } from '../../../../../types/file-ref'
-import useEventListener from '@/shared/hooks/use-event-listener'
+import { useLayoutContext } from '@/shared/context/layout-context'
 
 const FileTreeOpenContext = createContext<
   | {
@@ -32,25 +30,44 @@ const FileTreeOpenContext = createContext<
       handleFileTreeInit: () => void
       handleFileTreeSelect: (selectedEntities: FileTreeFindResult[]) => void
       handleFileTreeDelete: (entity: FileTreeFindResult) => void
+      fileTreeExpanded: boolean
+      toggleFileTreeExpanded: () => void
+      expandFileTree: () => void
+      collapseFileTree: () => void
     }
   | undefined
 >(undefined)
 
-export const FileTreeOpenProvider: FC = ({ children }) => {
-  const { rootDocId, owner } = useProjectContext()
+export const FileTreeOpenProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
+  const { project } = useProjectContext()
+  const rootDocId = project?.rootDocId
+  const projectOwner = project?.owner?._id
   const { eventEmitter, projectJoined } = useIdeReactContext()
-  const {
-    openDocId: openDocWithId,
-    currentDocumentId: openDocId,
-    openInitialDoc,
-  } = useEditorManagerContext()
-  const { selectEntity } = useSelectFileTreeEntity()
-  const [, setOpenFile] = useScopeValue<BinaryFile | null>('openFile')
+  const { openDocWithId, openInitialDoc } = useEditorManagerContext()
+  const { currentDocumentId } = useEditorOpenDocContext()
+  const { setOpenFile } = useLayoutContext()
   const [openEntity, setOpenEntity] = useState<
     FileTreeDocumentFindResult | FileTreeFileRefFindResult | null
   >(null)
   const [selectedEntityCount, setSelectedEntityCount] = useState(0)
   const [fileTreeReady, setFileTreeReady] = useState(false)
+
+  // NOTE: Only used in editor redesign
+  const [fileTreeExpanded, setFileTreeExpanded] = useState(true)
+
+  const toggleFileTreeExpanded = useCallback(() => {
+    setFileTreeExpanded(prev => !prev)
+  }, [])
+
+  const expandFileTree = useCallback(() => {
+    setFileTreeExpanded(true)
+  }, [])
+
+  const collapseFileTree = useCallback(() => {
+    setFileTreeExpanded(false)
+  }, [])
 
   const handleFileTreeInit = useCallback(() => {
     setFileTreeReady(true)
@@ -76,7 +93,7 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
         openDocWithId(selected.entity._id, { keepCurrentView: true })
         if (selected.entity.name.endsWith('.bib')) {
           sendMB('open-bib-file', {
-            projectOwner: owner._id,
+            projectOwner,
             isSampleFile: selected.entity.name === 'sample.bib',
             linkedFileProvider: null,
           })
@@ -91,7 +108,7 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
       if (openFile) {
         if (selected?.entity?.name?.endsWith('.bib')) {
           sendMB('open-bib-file', {
-            projectOwner: owner._id,
+            projectOwner,
             isSampleFile: false,
             linkedFileProvider: (selected.entity as FileRef).linkedFileData
               ?.provider,
@@ -100,43 +117,24 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
         window.dispatchEvent(new CustomEvent('file-view:file-opened'))
       }
     },
-    [fileTreeReady, setOpenFile, openDocWithId, owner]
+    [fileTreeReady, setOpenFile, openDocWithId, projectOwner]
   )
 
   const handleFileTreeDelete = useCallback(
-    (entity: FileTreeFindResult) => {
+    (entity: FileTreeFindResult, isFileRestore?: boolean) => {
       eventEmitter.emit('entity:deleted', entity)
-      // Select the root document if the current document was deleted
-      if (entity.entity._id === openDocId) {
+      // Select the root document if the current document was deleted and delete is not part of a file restore
+      if (!isFileRestore && entity.entity._id === currentDocumentId) {
         openDocWithId(rootDocId!)
       }
     },
-    [eventEmitter, openDocId, openDocWithId, rootDocId]
-  )
-
-  // Synchronize the file tree when openDoc or openDocId is called on the editor
-  // manager context from elsewhere. If the file tree does change, it will
-  // trigger the onSelect handler in this component, which will update the local
-  // state.
-  useEventListener(
-    'doc:after-opened',
-    useCallback(
-      (event: CustomEvent<{ docId: string }>) => {
-        selectEntity(event.detail.docId)
-      },
-      [selectEntity]
-    )
+    [eventEmitter, currentDocumentId, openDocWithId, rootDocId]
   )
 
   // Open a document once the file tree and project are ready
   const initialOpenDoneRef = useRef(false)
   useEffect(() => {
-    if (
-      rootDocId &&
-      fileTreeReady &&
-      projectJoined &&
-      !initialOpenDoneRef.current
-    ) {
+    if (fileTreeReady && projectJoined && !initialOpenDoneRef.current) {
       initialOpenDoneRef.current = true
       openInitialDoc(rootDocId)
     }
@@ -149,6 +147,10 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
       handleFileTreeInit,
       handleFileTreeSelect,
       handleFileTreeDelete,
+      fileTreeExpanded,
+      toggleFileTreeExpanded,
+      expandFileTree,
+      collapseFileTree,
     }
   }, [
     handleFileTreeDelete,
@@ -156,6 +158,10 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
     handleFileTreeSelect,
     openEntity,
     selectedEntityCount,
+    fileTreeExpanded,
+    toggleFileTreeExpanded,
+    expandFileTree,
+    collapseFileTree,
   ])
 
   return (

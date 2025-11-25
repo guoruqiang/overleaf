@@ -1,12 +1,20 @@
-import React, { useCallback, useState } from 'react'
-import { Button, Col, Form, FormControl, Row } from 'react-bootstrap'
+import React, { ChangeEvent, useCallback, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import MaterialIcon from '../../../shared/components/material-icon'
 import useWaitForI18n from '../../../shared/hooks/use-wait-for-i18n'
 import getMeta from '../../../utils/meta'
 import { useGroupMembersContext } from '../context/group-members-context'
 import ErrorAlert from './error-alert'
 import MembersList from './members-table/members-list'
+import { sendMB } from '../../../infrastructure/event-tracking'
+import BackButton from '@/features/group-management/components/back-button'
+import OLRow from '@/shared/components/ol/ol-row'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLCard from '@/shared/components/ol/ol-card'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLFormText from '@/shared/components/ol/ol-form-text'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
 
 export default function GroupMembers() {
   const { isReady } = useWaitForI18n()
@@ -20,6 +28,7 @@ export default function GroupMembers() {
     removeMemberError,
     inviteMemberLoading,
     inviteError,
+    memberAdded,
     paths,
   } = useGroupMembersContext()
   const [emailString, setEmailString] = useState<string>('')
@@ -27,9 +36,12 @@ export default function GroupMembers() {
   const groupId = getMeta('ol-groupId')
   const groupName = getMeta('ol-groupName')
   const groupSize = getMeta('ol-groupSize')
+  const canUseFlexibleLicensing = getMeta('ol-canUseFlexibleLicensing')
+  const canUseAddSeatsFeature = getMeta('ol-canUseAddSeatsFeature')
+  const hasWriteAccess = getMeta('ol-hasWriteAccess')
 
   const handleEmailsChange = useCallback(
-    e => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       setEmailString(e.target.value)
     },
     [setEmailString]
@@ -39,112 +51,154 @@ export default function GroupMembers() {
     return null
   }
 
-  const onAddMembersSubmit = (e: React.FormEvent<Form>) => {
+  const onAddMembersSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     addMembers(emailString)
   }
 
+  const groupSizeDetails = () => {
+    if (canUseFlexibleLicensing) {
+      return (
+        <small data-testid="group-size-details">
+          <strong>
+            {users.length === 1
+              ? t('you_have_1_license_and_your_plan_supports_up_to_y', {
+                  groupSize,
+                })
+              : t('you_have_x_licenses_and_your_plan_supports_up_to_y', {
+                  addedUsersSize: users.length,
+                  groupSize,
+                })}
+          </strong>
+          {canUseAddSeatsFeature && (
+            <>
+              {' '}
+              <a
+                href="/user/subscription/group/add-users"
+                rel="noreferrer noopener"
+                onClick={() => sendMB('flex-add-users')}
+              >
+                {t('buy_more_licenses')}.
+              </a>
+            </>
+          )}
+        </small>
+      )
+    }
+
+    return (
+      <small>
+        <Trans
+          i18nKey="you_have_added_x_of_group_size_y"
+          components={[<strong />, <strong />]} // eslint-disable-line react/jsx-key
+          values={{ addedUsersSize: users.length, groupSize }}
+          shouldUnescape
+          tOptions={{ interpolation: { escapeValue: true } }}
+        />
+      </small>
+    )
+  }
+
   return (
     <div className="container">
-      <Row>
-        <Col md={10} mdOffset={1}>
-          <h1>
-            <a href="/user/subscription" className="back-btn">
-              <MaterialIcon
-                type="arrow_back"
-                accessibilityLabel={t('back_to_subscription')}
-              />
-            </a>{' '}
-            {groupName || t('group_subscription')}
-          </h1>
-          <div className="card">
-            <div className="page-header">
-              <div className="pull-right">
-                {selectedUsers.length === 0 && (
-                  <small>
-                    <Trans
-                      i18nKey="you_have_added_x_of_group_size_y"
-                      components={[<strong />, <strong />]} // eslint-disable-line react/jsx-key
-                      values={{ addedUsersSize: users.length, groupSize }}
-                      shouldUnescape
-                      tOptions={{ interpolation: { escapeValue: true } }}
-                    />
-                  </small>
-                )}
+      <OLRow>
+        <OLCol lg={{ span: 10, offset: 1 }}>
+          <div className="group-heading" data-testid="group-heading">
+            <BackButton
+              href="/user/subscription"
+              accessibilityLabel={t('back_to_subscription')}
+            />
+            <h1 className="heading">{groupName || t('group_subscription')}</h1>
+          </div>
+          <OLCard>
+            <div
+              className="page-header mb-4"
+              data-testid="page-header-members-details"
+            >
+              <div className="float-end">
+                {selectedUsers.length === 0 && groupSizeDetails()}
                 {removeMemberLoading ? (
-                  <Button bsStyle="danger" disabled>
+                  <OLButton variant="danger" disabled>
                     {t('removing')}&hellip;
-                  </Button>
+                  </OLButton>
                 ) : (
                   <>
                     {selectedUsers.length > 0 && (
-                      <Button bsStyle="danger" onClick={removeMembers}>
+                      <OLButton variant="danger" onClick={removeMembers}>
                         {t('remove_from_group')}
-                      </Button>
+                      </OLButton>
                     )}
                   </>
                 )}
               </div>
-              <h3>{t('members_management')}</h3>
+              <h2 className="h3 mt-0">{t('members_management')}</h2>
             </div>
             <div className="row-spaced-small">
               <ErrorAlert error={removeMemberError} />
-              <MembersList groupId={groupId} />
+              <MembersList groupId={groupId} hasWriteAccess={hasWriteAccess} />
             </div>
             <hr />
-            {users.length < groupSize && (
-              <div className="add-more-members-form">
-                <p className="small">{t('add_more_members')}</p>
+            {hasWriteAccess && users.length < groupSize && (
+              <div
+                className="add-more-members-form"
+                data-testid="add-more-members-form"
+              >
+                {memberAdded && (
+                  <OLNotification
+                    content={t('members_added')}
+                    type="success"
+                    className="mt-2 mb-3"
+                  />
+                )}
                 <ErrorAlert error={inviteError} />
-                <Form horizontal onSubmit={onAddMembersSubmit} className="form">
-                  <Row>
-                    <Col xs={6}>
-                      <FormControl
+                <form onSubmit={onAddMembersSubmit}>
+                  <OLRow className="align-items-center">
+                    <OLCol lg={8}>
+                      <OLFormLabel htmlFor="add-members-emails">
+                        {t('invite_more_members')}
+                      </OLFormLabel>
+                      <OLFormControl
+                        id="add-members-emails"
                         type="input"
-                        placeholder="jane@example.com, joe@example.com"
-                        aria-describedby="add-members-description"
                         value={emailString}
                         onChange={handleEmailsChange}
+                        aria-describedby="invite-more-members-help-text"
                       />
-                    </Col>
-                    <Col xs={4}>
-                      {inviteMemberLoading ? (
-                        <Button bsStyle="primary" disabled>
-                          {t('adding')}&hellip;
-                        </Button>
-                      ) : (
-                        <Button bsStyle="primary" onClick={onAddMembersSubmit}>
-                          {t('add')}
-                        </Button>
-                      )}
-                    </Col>
-                    <Col xs={2}>
-                      <a href={paths.exportMembers}>{t('export_csv')}</a>
-                    </Col>
-                  </Row>
-                  <Row>
-                    <Col xs={8}>
-                      <span className="help-block">
+                      <OLFormText id="invite-more-members-help-text">
                         {t('add_comma_separated_emails_help')}
-                      </span>
-                    </Col>
-                  </Row>
-                </Form>
+                      </OLFormText>
+                    </OLCol>
+                    <OLCol lg={4} className="mt-3 mt-lg-0">
+                      <div className="align-items-center d-flex flex-column flex-lg-row gap-3 text-center">
+                        <OLButton
+                          variant="primary"
+                          onClick={onAddMembersSubmit}
+                          isLoading={inviteMemberLoading}
+                          loadingLabel={t('inviting')}
+                        >
+                          {t('invite')}
+                        </OLButton>
+                        <a href={paths.exportMembers}>{t('export_csv')}</a>
+                      </div>
+                    </OLCol>
+                  </OLRow>
+                </form>
               </div>
             )}
-            {users.length >= groupSize && users.length > 0 && (
+            {(!hasWriteAccess ||
+              (users.length >= groupSize && users.length > 0)) && (
               <>
                 <ErrorAlert error={inviteError} />
-                <Row>
-                  <Col xs={2} xsOffset={10}>
+                <OLRow>
+                  <OLCol xs={{ span: 2, offset: 10 }}>
                     <a href={paths.exportMembers}>{t('export_csv')}</a>
-                  </Col>
-                </Row>
+                  </OLCol>
+                </OLRow>
               </>
             )}
-          </div>
-        </Col>
-      </Row>
+          </OLCard>
+        </OLCol>
+      </OLRow>
     </div>
   )
 }

@@ -17,7 +17,6 @@ import { isFileRenamed } from '../utils/file-diff'
 import { loadLabels } from '../utils/label'
 import { autoSelectFile } from '../utils/auto-select-file'
 import usePersistedState from '../../../shared/hooks/use-persisted-state'
-import ColorManager from '../../../ide/colors/ColorManager'
 import moment from 'moment'
 import { cloneDeep } from 'lodash'
 import {
@@ -26,8 +25,9 @@ import {
   Update,
 } from '../services/types/update'
 import { Selection } from '../services/types/selection'
-import { useErrorHandler } from 'react-error-boundary'
+import { useErrorBoundary } from 'react-error-boundary'
 import { getUpdateForVersion } from '../utils/history-details'
+import { getHueForUserId } from '@/shared/utils/colors'
 
 // Allow testing of infinite scrolling by providing query string parameters to
 // limit the number of updates returned in a batch and apply a delay
@@ -78,13 +78,10 @@ const updatesInfoInitialState: HistoryContextValue['updatesInfo'] = {
 function useHistory() {
   const { view } = useLayoutContext()
   const user = useUserContext()
-  const project = useProjectContext()
+  const { projectId, project, features } = useProjectContext()
   const userId = user.id
-  const projectId = project._id
-  const projectOwnerId = project.owner?._id
-  const userHasFullFeature = Boolean(
-    project.features?.versioning || user.isAdmin
-  )
+  const projectOwnerId = project?.owner?._id
+  const userHasFullFeature = Boolean(features.versioning || user.isAdmin)
   const currentUserIsOwner = projectOwnerId === userId
 
   const [selection, setSelection] = useState<Selection>(selectionInitialState)
@@ -99,7 +96,7 @@ function useHistory() {
   )
 
   const updatesAbortControllerRef = useRef<AbortController | null>(null)
-  const handleError = useErrorHandler()
+  const { showBoundary } = useErrorBoundary()
 
   const fetchNextBatchOfUpdates = useCallback(() => {
     // If there is an in-flight request for updates, just let it complete, by
@@ -120,7 +117,7 @@ function useHistory() {
       for (const [index, update] of loadedUpdates.entries()) {
         for (const user of update.meta.users) {
           if (user) {
-            user.hue = ColorManager.getHueForUserId(user.id)
+            user.hue = getHueForUserId(user.id)
           }
         }
         if (
@@ -199,11 +196,11 @@ function useHistory() {
           loadingState: 'ready',
         })
       })
-      .catch(handleError)
+      .catch(showBoundary)
       .finally(() => {
         updatesAbortControllerRef.current = null
       })
-  }, [updatesInfo, projectId, labels, handleError, userHasFullFeature])
+  }, [updatesInfo, projectId, labels, showBoundary, userHasFullFeature])
 
   // Abort in-flight updates request on unmount
   useEffect(() => {
@@ -284,7 +281,7 @@ function useHistory() {
           }
         })
       })
-      .catch(handleError)
+      .catch(showBoundary)
       .finally(() => {
         setLoadingFileDiffs(false)
         abortController = null
@@ -295,7 +292,7 @@ function useHistory() {
         abortController.abort()
       }
     }
-  }, [projectId, fromV, toV, updateForToV, handleError])
+  }, [projectId, fromV, toV, updateForToV, showBoundary])
 
   useEffect(() => {
     // Set update range if there isn't one and updates have loaded

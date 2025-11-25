@@ -4,12 +4,36 @@
 
 BUILD_NUMBER ?= local
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
+BRANCH_NAME_TAG_SAFE = $(shell echo $(BRANCH_NAME) | sed 's/\//\-\-/g')
 PROJECT_NAME = history-v1
 BUILD_DIR_NAME = $(shell pwd | xargs basename | tr -cd '[a-zA-Z0-9_.\-]')
+HERE=$(shell pwd)
+export MONOREPO ?= $(shell cd ../../ && pwd)
+IMAGE_CI ?= ci/$(PROJECT_NAME):$(BRANCH_NAME_TAG_SAFE)-$(BUILD_NUMBER)
+IMAGE_REPO ?= us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME)
+IMAGE_REPO_FINAL ?= $(IMAGE_REPO):$(BRANCH_NAME_TAG_SAFE)-$(BUILD_NUMBER)
+IMAGE_CACHE ?= $(IMAGE_REPO):cache-$(shell cat \
+	$(MONOREPO)/package.json \
+	$(MONOREPO)/package-lock.json \
+	$(MONOREPO)/libraries/fetch-utils/package.json \
+	$(MONOREPO)/libraries/logger/package.json \
+	$(MONOREPO)/libraries/metrics/package.json \
+	$(MONOREPO)/libraries/mongo-utils/package.json \
+	$(MONOREPO)/libraries/o-error/package.json \
+	$(MONOREPO)/libraries/object-persistor/package.json \
+	$(MONOREPO)/libraries/overleaf-editor-core/package.json \
+	$(MONOREPO)/libraries/promise-utils/package.json \
+	$(MONOREPO)/libraries/redis-wrapper/package.json \
+	$(MONOREPO)/libraries/settings/package.json \
+	$(MONOREPO)/libraries/stream-utils/package.json \
+	$(MONOREPO)/services/history-v1/package.json \
+	$(MONOREPO)/tools/migrations/package.json \
+	$(MONOREPO)/patches/* \
+| sha256sum | cut -d '-' -f1)
 
 DOCKER_COMPOSE_FLAGS ?= -f docker-compose.yml
 DOCKER_COMPOSE := BUILD_NUMBER=$(BUILD_NUMBER) \
-	BRANCH_NAME=$(BRANCH_NAME) \
+	BRANCH_NAME=$(BRANCH_NAME_TAG_SAFE) \
 	PROJECT_NAME=$(PROJECT_NAME) \
 	MOCHA_GREP=${MOCHA_GREP} \
 	docker compose ${DOCKER_COMPOSE_FLAGS}
@@ -23,21 +47,38 @@ DOCKER_COMPOSE_TEST_UNIT = \
 	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME_TEST_UNIT) $(DOCKER_COMPOSE)
 
 clean:
-	-docker rmi ci/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER)
-	-docker rmi us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER)
-	-$(DOCKER_COMPOSE_TEST_UNIT) down --rmi local
-	-$(DOCKER_COMPOSE_TEST_ACCEPTANCE) down --rmi local
+	-docker rmi $(IMAGE_CI)
+	-docker rmi $(IMAGE_REPO_FINAL)
+	-$(DOCKER_COMPOSE_TEST_UNIT) down --remove-orphans --rmi local --timeout 0 --volumes
+	-$(DOCKER_COMPOSE_TEST_ACCEPTANCE) down --remove-orphans --rmi local --timeout 0 --volumes
+	-rm -rf reports/
 
-HERE=$(shell pwd)
-MONOREPO=$(shell cd ../../ && pwd)
 # Run the linting commands in the scope of the monorepo.
 # Eslint and prettier (plus some configs) are on the root.
-RUN_LINTING = docker run --rm -v $(MONOREPO):$(MONOREPO) -w $(HERE) node:18.20.4 npm run --silent
+RUN_LINTING = docker run --rm -v $(MONOREPO):$(MONOREPO) -w $(HERE) node:22.18.0 npm run --silent
 
-RUN_LINTING_CI = docker run --rm --volume $(MONOREPO)/.editorconfig:/overleaf/.editorconfig --volume $(MONOREPO)/.eslintignore:/overleaf/.eslintignore --volume $(MONOREPO)/.eslintrc:/overleaf/.eslintrc --volume $(MONOREPO)/.prettierignore:/overleaf/.prettierignore --volume $(MONOREPO)/.prettierrc:/overleaf/.prettierrc --volume $(MONOREPO)/tsconfig.backend.json:/overleaf/tsconfig.backend.json ci/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER) npm run --silent
+RUN_LINTING_CI = docker run --rm --volume $(MONOREPO)/.editorconfig:/overleaf/.editorconfig --volume $(MONOREPO)/.eslintignore:/overleaf/.eslintignore --volume $(MONOREPO)/.eslintrc:/overleaf/.eslintrc --volume $(MONOREPO)/.prettierignore:/overleaf/.prettierignore --volume $(MONOREPO)/.prettierrc:/overleaf/.prettierrc --volume $(MONOREPO)/tsconfig.backend.json:/overleaf/tsconfig.backend.json --volume $(MONOREPO)/services/history-v1/reports:/overleaf/services/history-v1/reports $(IMAGE_CI) npm run --silent
 
 # Same but from the top of the monorepo
-RUN_LINTING_MONOREPO = docker run --rm -v $(MONOREPO):$(MONOREPO) -w $(MONOREPO) node:18.20.4 npm run --silent
+RUN_LINTING_MONOREPO = docker run --rm -v $(MONOREPO):$(MONOREPO) -w $(MONOREPO) node:22.18.0 npm run --silent
+
+SHELLCHECK_OPTS = \
+	--shell=bash \
+	--external-sources
+SHELLCHECK_COLOR := $(if $(CI),--color=never,--color)
+SHELLCHECK_FILES := { git ls-files "*.sh" -z; git grep -Plz "\A\#\!.*bash"; } | sort -zu
+
+shellcheck:
+	@$(SHELLCHECK_FILES) | xargs -0 -r docker run --rm -v $(HERE):/mnt -w /mnt \
+		koalaman/shellcheck:stable $(SHELLCHECK_OPTS) $(SHELLCHECK_COLOR)
+
+shellcheck_fix:
+	@$(SHELLCHECK_FILES) | while IFS= read -r -d '' file; do \
+		diff=$$(docker run --rm -v $(HERE):/mnt -w /mnt koalaman/shellcheck:stable $(SHELLCHECK_OPTS) --format=diff "$$file" 2>/dev/null); \
+		if [ -n "$$diff" ] && ! echo "$$diff" | patch -p1 >/dev/null 2>&1; then echo "\033[31m$$file\033[0m"; \
+		elif [ -n "$$diff" ]; then echo "$$file"; \
+		else echo "\033[2m$$file\033[0m"; fi \
+	done
 
 format:
 	$(RUN_LINTING) format
@@ -52,7 +93,8 @@ lint:
 	$(RUN_LINTING) lint
 
 lint_ci:
-	$(RUN_LINTING_CI) lint
+	-$(RUN_LINTING_CI) lint -- --format json --output-file reports/eslint.json
+	sed -i 's_"filePath":"/overleaf_"filePath":"$(MONOREPO)_g' reports/eslint.json
 
 lint_fix:
 	$(RUN_LINTING) lint:fix
@@ -63,12 +105,11 @@ typecheck:
 typecheck_ci:
 	$(RUN_LINTING_CI) types:check
 
-test: format lint typecheck test_unit test_acceptance
+test: format lint typecheck shellcheck test_unit test_acceptance
 
 test_unit:
 ifneq (,$(wildcard test/unit))
 	$(DOCKER_COMPOSE_TEST_UNIT) run --rm test_unit
-	$(MAKE) test_unit_clean
 endif
 
 test_clean: test_unit_clean
@@ -98,13 +139,6 @@ test_acceptance_clean:
 	$(DOCKER_COMPOSE_TEST_ACCEPTANCE) down -v -t 0
 
 test_acceptance_pre_run:
-	$(DOCKER_COMPOSE_TEST_ACCEPTANCE) up -d mongo
-	$(DOCKER_COMPOSE_TEST_ACCEPTANCE) exec -T mongo sh -c ' \
-		while ! mongosh --eval "db.version()" > /dev/null; do \
-			echo "Waiting for Mongo..."; \
-			sleep 1; \
-		done; \
-		mongosh --eval "rs.initiate({ _id: \"overleaf\", members: [ { _id: 0, host: \"mongo:27017\" } ] })"'
 ifneq (,$(wildcard test/acceptance/js/scripts/pre-run))
 	$(DOCKER_COMPOSE_TEST_ACCEPTANCE) run --rm test_acceptance test/acceptance/js/scripts/pre-run
 endif
@@ -116,27 +150,28 @@ build:
 	docker build \
 		--pull \
 		--build-arg BUILDKIT_INLINE_CACHE=1 \
-		--tag ci/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER) \
-		--tag us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER) \
-		--tag us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME):$(BRANCH_NAME) \
-		--cache-from us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME):$(BRANCH_NAME) \
-		--cache-from us-east1-docker.pkg.dev/overleaf-ops/ol-docker/$(PROJECT_NAME):main \
+		--tag $(IMAGE_CI) \
+		--tag $(IMAGE_CACHE) \
+		--tag $(IMAGE_REPO_FINAL) \
+		--cache-from $(IMAGE_CACHE) \
 		--file Dockerfile \
 		../..
 
 tar:
 	$(DOCKER_COMPOSE) up tar
 
-publish:
+push:
+	docker push $(IMAGE_REPO_FINAL)
 
-	docker push $(DOCKER_REPO)/$(PROJECT_NAME):$(BRANCH_NAME)-$(BUILD_NUMBER)
-
+push_branch:
+	docker push $(IMAGE_CACHE)
 
 .PHONY: clean \
 	format format_fix \
 	lint lint_fix \
 	build_types typecheck \
 	lint_ci format_ci typecheck_ci \
+	shellcheck shellcheck_fix \
 	test test_clean test_unit test_unit_clean \
 	test_acceptance test_acceptance_debug test_acceptance_pre_run \
 	test_acceptance_run test_acceptance_run_debug test_acceptance_clean \

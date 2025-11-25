@@ -1,19 +1,15 @@
 import { PropsWithChildren } from 'react'
-import Icon from '../../../shared/components/icon'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 import MaterialIcon from '@/shared/components/material-icon'
 
 type Props = {
   onClick?: () => void
-  icon?: {
-    type: string
-    fw?: boolean
-  }
+  icon?: string
   svgIcon?: React.ReactElement | null
   disabled?: boolean
   disabledAccesibilityText?: string
   type?: 'button' | 'link'
   href?: string
+  translate?: React.HTMLAttributes<HTMLElement>['translate']
 }
 
 function LeftMenuButtonIcon({
@@ -21,17 +17,12 @@ function LeftMenuButtonIcon({
   icon,
 }: {
   svgIcon?: React.ReactElement | null
-  icon?: { type: string; fw?: boolean }
+  icon?: string
 }) {
   if (svgIcon) {
     return <div className="material-symbols">{svgIcon}</div>
   } else if (icon) {
-    return (
-      <BootstrapVersionSwitcher
-        bs3={<Icon type={icon.type} fw={icon.fw ?? false} />}
-        bs5={<MaterialIcon type={icon.type} />}
-      />
-    )
+    return <MaterialIcon type={icon} />
   } else return null
 }
 
@@ -44,14 +35,15 @@ export default function LeftMenuButton({
   disabledAccesibilityText,
   type = 'button',
   href,
+  translate,
 }: PropsWithChildren<Props>) {
   if (disabled) {
     return (
       <div className="left-menu-button link-disabled">
         <LeftMenuButtonIcon svgIcon={svgIcon} icon={icon} />
-        <span>{children}</span>
+        <span translate={translate}>{children}</span>
         {disabledAccesibilityText ? (
-          <span className="sr-only">{disabledAccesibilityText}</span>
+          <span className="visually-hidden">{disabledAccesibilityText}</span>
         ) : null}
       </div>
     )
@@ -61,7 +53,7 @@ export default function LeftMenuButton({
     return (
       <button onClick={onClick} className="left-menu-button">
         <LeftMenuButtonIcon svgIcon={svgIcon} icon={icon} />
-        <span>{children}</span>
+        <span translate={translate}>{children}</span>
       </button>
     )
   } else {
@@ -73,7 +65,7 @@ export default function LeftMenuButton({
         className="left-menu-button"
       >
         <LeftMenuButtonIcon svgIcon={svgIcon} icon={icon} />
-        <span>{children}</span>
+        <span translate={translate}>{children}</span>
       </a>
     )
   }

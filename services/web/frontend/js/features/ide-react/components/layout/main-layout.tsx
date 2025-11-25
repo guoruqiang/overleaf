@@ -1,5 +1,5 @@
 import { Panel, PanelGroup } from 'react-resizable-panels'
-import { FC } from 'react'
+import { ElementType, FC } from 'react'
 import { HorizontalResizeHandle } from '../resize/horizontal-resize-handle'
 import classNames from 'classnames'
 import { useLayoutContext } from '@/shared/context/layout-context'
@@ -14,9 +14,17 @@ import { useChatPane } from '@/features/ide-react/hooks/use-chat-pane'
 import { EditorAndPdf } from '@/features/ide-react/components/editor-and-pdf'
 import HistoryContainer from '@/features/ide-react/components/history-container'
 import getMeta from '@/utils/meta'
+import { useEditorContext } from '@/shared/context/editor-context'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+const mainEditorLayoutModalsModules: Array<{
+  import: { default: ElementType }
+  path: string
+}> = importOverleafModules('mainEditorLayoutModals')
 
 export const MainLayout: FC = () => {
   const { view } = useLayoutContext()
+  const { isRestrictedTokenMember } = useEditorContext()
 
   const {
     isOpen: sidebarIsOpen,
@@ -39,7 +47,8 @@ export const MainLayout: FC = () => {
     handlePaneExpand: handleChatExpand,
   } = useChatPane()
 
-  const chatEnabled = getMeta('ol-chatEnabled')
+  const chatEnabled =
+    getMeta('ol-capabilities')?.includes('chat') && !isRestrictedTokenMember
 
   const { t } = useTranslation()
 
@@ -122,6 +131,11 @@ export const MainLayout: FC = () => {
           </Panel>
         </PanelGroup>
       </div>
+      {mainEditorLayoutModalsModules.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
     </div>
   )
 }

@@ -9,10 +9,6 @@ logger.initialize('document-updater')
 
 logger.logger.addSerializers(require('./app/js/LoggerSerializers'))
 
-if (Settings.sentry != null && Settings.sentry.dsn != null) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
-
 const RedisManager = require('./app/js/RedisManager')
 const DispatchManager = require('./app/js/DispatchManager')
 const DeleteQueueManager = require('./app/js/DeleteQueueManager')
@@ -139,7 +135,13 @@ app.use((req, res, next) => {
 })
 
 app.get('/project/:project_id/doc/:doc_id', HttpController.getDoc)
+app.get(
+  '/project/:project_id/doc/:doc_id/comment/:comment_id',
+  HttpController.getComment
+)
 app.get('/project/:project_id/doc/:doc_id/peek', HttpController.peekDoc)
+app.get('/project/:project_id/ranges', HttpController.getProjectRanges)
+
 // temporarily keep the GET method for backwards compatibility
 app.get('/project/:project_id/doc', HttpController.getProjectDocsAndFlushIfOld)
 // will migrate to the POST method of get_and_flush_if_old instead
@@ -147,8 +149,13 @@ app.post(
   '/project/:project_id/get_and_flush_if_old',
   HttpController.getProjectDocsAndFlushIfOld
 )
+app.get(
+  '/project/:project_id/last_updated_at',
+  HttpController.getProjectLastUpdatedAt
+)
 app.post('/project/:project_id/clearState', HttpController.clearProjectState)
 app.post('/project/:project_id/doc/:doc_id', HttpController.setDoc)
+app.post('/project/:project_id/doc/:doc_id/append', HttpController.appendToDoc)
 app.post(
   '/project/:project_id/doc/:doc_id/flush',
   HttpController.flushDocIfLoaded
@@ -170,6 +177,10 @@ app.post(
 app.post(
   '/project/:project_id/doc/:doc_id/change/accept',
   HttpController.acceptChanges
+)
+app.post(
+  '/project/:project_id/doc/:doc_id/change/reject',
+  HttpController.rejectChanges
 )
 app.post(
   '/project/:project_id/doc/:doc_id/comment/:comment_id/resolve',

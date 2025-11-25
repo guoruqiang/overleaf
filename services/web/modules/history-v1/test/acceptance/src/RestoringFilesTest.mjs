@@ -4,19 +4,19 @@ import _ from 'lodash'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import Path from 'node:path'
-import User from '../../../../../test/acceptance/src/helpers/User.js'
-import MockProjectHistoryApiClass from '../../../../../test/acceptance/src/mocks/MockProjectHistoryApi.js'
-import MockDocstoreApiClass from '../../../../../test/acceptance/src/mocks/MockDocstoreApi.js'
-import MockFilestoreApiClass from '../../../../../test/acceptance/src/mocks/MockFilestoreApi.js'
+import User from '../../../../../test/acceptance/src/helpers/User.mjs'
+import MockProjectHistoryApiClass from '../../../../../test/acceptance/src/mocks/MockProjectHistoryApi.mjs'
+import MockDocstoreApiClass from '../../../../../test/acceptance/src/mocks/MockDocstoreApi.mjs'
+import MockV1HistoryApiClass from '../../../../../test/acceptance/src/mocks/MockV1HistoryApi.mjs'
 
-let MockProjectHistoryApi, MockDocstoreApi, MockFilestoreApi
+let MockProjectHistoryApi, MockDocstoreApi, MockV1HistoryApi
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 before(function () {
   MockProjectHistoryApi = MockProjectHistoryApiClass.instance()
   MockDocstoreApi = MockDocstoreApiClass.instance()
-  MockFilestoreApi = MockFilestoreApiClass.instance()
+  MockV1HistoryApi = MockV1HistoryApiClass.instance()
 })
 
 describe('RestoringFiles', function () {
@@ -118,7 +118,7 @@ describe('RestoringFiles', function () {
         )
       })
 
-      it('should have created a file', function (done) {
+      it('should have created a file in history-v1', function (done) {
         this.owner.getProject(this.project_id, (error, project) => {
           if (error) {
             throw error
@@ -127,8 +127,11 @@ describe('RestoringFiles', function () {
             project.rootFolder[0].fileRefs,
             file => file.name === 'image.png'
           )
-          file = MockFilestoreApi.files[this.project_id][file._id]
-          expect(file.content).to.equal(this.pngData)
+          file =
+            MockV1HistoryApi.blobs[project.overleaf.history.id.toString()][
+              file.hash
+            ]
+          expect(file).to.deep.equal(Buffer.from(this.pngData))
           done()
         })
       })

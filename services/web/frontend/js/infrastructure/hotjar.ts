@@ -1,43 +1,35 @@
 import getMeta from '@/utils/meta'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { debugConsole } from '@/utils/debugging'
 import { initializeHotjar } from '@/infrastructure/hotjar-snippet'
+import { createTrackingLoader } from '@/infrastructure/tracking-loader'
+import grammarlyExtensionPresent from '@/shared/utils/grammarly'
 
 const { hotjarId, hotjarVersion } = getMeta('ol-ExposedSettings')
+const shouldLoadHotjar = getMeta('ol-shouldLoadHotjar')
 
-let hotjarInitialized = false
-
-if (hotjarId && hotjarVersion && isSplitTestEnabled('hotjar')) {
-  const loadHotjar = () => {
-    // consent needed
-    if (!document.cookie.split('; ').some(item => item === 'oa=1')) {
-      return
-    }
-
-    if (!/^\d+$/.test(hotjarId) || !/^\d+$/.test(hotjarVersion)) {
-      debugConsole.error('Invalid Hotjar id or version')
-      return
-    }
-
-    // avoid inserting twice
-    if (!hotjarInitialized) {
-      debugConsole.log('Loading Hotjar')
-      hotjarInitialized = true
-      initializeHotjar(hotjarId, hotjarVersion)
-    }
+function attemptHotjarLoad() {
+  if (!hotjarId || !hotjarVersion) {
+    return
   }
 
-  // load when idle, if supported
-  if (typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(loadHotjar)
-  } else {
-    loadHotjar()
+  if (!/^\d+$/.test(hotjarId) || !/^\d+$/.test(hotjarVersion)) {
+    debugConsole.error('Invalid Hotjar id or version')
+    return
   }
 
-  // listen for consent
-  window.addEventListener('cookie-consent', event => {
-    if ((event as CustomEvent<boolean>).detail) {
-      loadHotjar()
-    }
+  if (grammarlyExtensionPresent()) {
+    return
+  }
+
+  createTrackingLoader(
+    () => initializeHotjar(hotjarId, hotjarVersion),
+    'Hotjar'
+  )
+}
+
+if (hotjarId && hotjarVersion && shouldLoadHotjar) {
+  document.addEventListener('DOMContentLoaded', () => {
+    // add delay to allow extensions to inject shadow DOM
+    setTimeout(attemptHotjarLoad, 1000)
   })
 }

@@ -14,7 +14,7 @@ import { UserEmailData } from '../../../../../../../../types/user-email'
 import { UseAsyncReturnType } from '../../../../../../shared/hooks/use-async'
 import { ssoAvailableForInstitution } from '../../../../utils/sso'
 import ConfirmationModal from './confirmation-modal'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 
 const getDescription = (
   t: (s: string) => string,
@@ -42,13 +42,18 @@ const getDescription = (
 
 type MakePrimaryProps = {
   userEmailData: UserEmailData
+  primary?: UserEmailData
   makePrimaryAsync: UseAsyncReturnType
 }
 
-function MakePrimary({ userEmailData, makePrimaryAsync }: MakePrimaryProps) {
+function MakePrimary({
+  userEmailData,
+  primary,
+  makePrimaryAsync,
+}: MakePrimaryProps) {
   const [show, setShow] = useState(false)
   const { t } = useTranslation()
-  const { state, makePrimary } = useUserEmailsContext()
+  const { state, makePrimary, deleteEmail } = useUserEmailsContext()
 
   const handleShowModal = () => setShow(true)
   const handleHideModal = () => setShow(false)
@@ -57,7 +62,10 @@ function MakePrimary({ userEmailData, makePrimaryAsync }: MakePrimaryProps) {
 
     makePrimaryAsync
       .runAsync(
-        postJSON('/user/emails/default', {
+        // 'delete-unconfirmed-primary' is a temporary parameter here to keep backward compatibility.
+        // So users with the old version of the frontend don't get their primary email deleted unexpectedly.
+        // https://github.com/overleaf/internal/issues/23536
+        postJSON('/user/emails/default?delete-unconfirmed-primary', {
           body: {
             email: userEmailData.email,
           },
@@ -65,6 +73,9 @@ function MakePrimary({ userEmailData, makePrimaryAsync }: MakePrimaryProps) {
       )
       .then(() => {
         makePrimary(userEmailData.email)
+        if (primary && !primary.confirmedAt) {
+          deleteEmail(primary.email)
+        }
       })
       .catch(() => {})
   }
@@ -107,6 +118,7 @@ function MakePrimary({ userEmailData, makePrimaryAsync }: MakePrimaryProps) {
       <ConfirmationModal
         email={userEmailData.email}
         isConfirmDisabled={isConfirmDisabled}
+        primary={primary}
         show={show}
         onHide={handleHideModal}
         onConfirm={handleSetDefaultUserEmail}

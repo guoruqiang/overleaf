@@ -24,6 +24,7 @@ const logger = require('@overleaf/logger')
 
 /** @import { Readable } from 'stream' */
 
+/** @type {Map<string, { blob: core.Blob, demoted: boolean}>} */
 const GLOBAL_BLOBS = new Map()
 
 function makeGlobalKey(hash) {
@@ -126,6 +127,34 @@ async function loadGlobalBlobs() {
 }
 
 /**
+ * Return metadata for all blobs in the given project
+ * @param {Array<string|number>} projectIds
+ * @return {Promise<{nBlobs:number, blobs:Map<string,Array<core.Blob>>}>}
+ */
+async function getProjectBlobsBatch(projectIds) {
+  const mongoProjects = []
+  const postgresProjects = []
+  for (const projectId of projectIds) {
+    if (typeof projectId === 'number') {
+      postgresProjects.push(projectId)
+    } else {
+      mongoProjects.push(projectId)
+    }
+  }
+  const [
+    { nBlobs: nBlobsPostgres, blobs: blobsPostgres },
+    { nBlobs: nBlobsMongo, blobs: blobsMongo },
+  ] = await Promise.all([
+    postgresBackend.getProjectBlobsBatch(postgresProjects),
+    mongoBackend.getProjectBlobsBatch(mongoProjects),
+  ])
+  for (const [id, blobs] of blobsPostgres.entries()) {
+    blobsMongo.set(id.toString(), blobs)
+  }
+  return { nBlobs: nBlobsPostgres + nBlobsMongo, blobs: blobsMongo }
+}
+
+/**
  * @classdesc
  * Fetch and store the content of files using content-addressable hashing. The
  * blob store manages both content and metadata (byte and UTF-8 length) for
@@ -177,7 +206,7 @@ class BlobStore {
    * temporary file).
    *
    * @param {string} pathname
-   * @return {Promise.<core.Blob>}
+   * @return {Promise<core.Blob>}
    */
   async putFile(pathname) {
     assert.string(pathname, 'bad pathname')
@@ -191,9 +220,26 @@ class BlobStore {
       pathname
     )
     newBlob.setStringLength(stringLength)
-    await uploadBlob(this.projectId, newBlob, fs.createReadStream(pathname))
-    await this.backend.insertBlob(this.projectId, newBlob)
+    await this.putBlob(pathname, newBlob)
     return newBlob
+  }
+
+  /**
+   * Write a new blob, the stringLength must have been added already. It should
+   * have been checked that the blob does not exist yet. Consider using
+   * {@link putFile} instead of this lower-level method.
+   *
+   * @param {string} pathname
+   * @param {core.Blob} finializedBlob
+   * @return {Promise<void>}
+   */
+  async putBlob(pathname, finializedBlob) {
+    await uploadBlob(
+      this.projectId,
+      finializedBlob,
+      fs.createReadStream(pathname)
+    )
+    await this.backend.insertBlob(this.projectId, finializedBlob)
   }
 
   /**
@@ -264,14 +310,15 @@ class BlobStore {
    * failure, so the caller must be prepared to retry on errors, if appropriate.
    *
    * @param {string} hash hexadecimal SHA-1 hash
+   * @param {Object} opts
    * @return {Promise.<Readable>} a stream to read the file
    */
-  async getStream(hash) {
+  async getStream(hash, opts = {}) {
     assert.blobHash(hash, 'bad hash')
 
     const { bucket, key } = getBlobLocation(this.projectId, hash)
     try {
-      const stream = await persistor.getObjectStream(bucket, key)
+      const stream = await persistor.getObjectStream(bucket, key, opts)
       return stream
     } catch (err) {
       if (err instanceof objectPersistor.Errors.NotFoundError) {
@@ -297,6 +344,11 @@ class BlobStore {
     return blob
   }
 
+  /**
+   *
+   * @param {Array<string>} hashes
+   * @return {Promise<*[]>}
+   */
   async getBlobs(hashes) {
     assert.array(hashes, 'bad hashes')
     const nonGlobalHashes = []
@@ -309,12 +361,25 @@ class BlobStore {
         nonGlobalHashes.push(hash)
       }
     }
+    if (nonGlobalHashes.length === 0) {
+      return blobs // to avoid unnecessary database lookup
+    }
     const projectBlobs = await this.backend.findBlobs(
       this.projectId,
       nonGlobalHashes
     )
     blobs.push(...projectBlobs)
     return blobs
+  }
+
+  /**
+   * Retrieve all blobs associated with the project.
+   * @returns {Promise<core.Blob[]>} A promise that resolves to an array of blobs.
+   */
+
+  async getProjectBlobs() {
+    const projectBlobs = await this.backend.getProjectBlobs(this.projectId)
+    return projectBlobs
   }
 
   /**
@@ -335,6 +400,41 @@ class BlobStore {
     const blob = await this.backend.findBlob(this.projectId, hash)
     return blob
   }
+
+  /**
+   * Copy an existing sourceBlob in this project to a target project.
+   * @param {Blob} sourceBlob
+   * @param {string} targetProjectId
+   * @return {Promise<void>}
+   */
+  async copyBlob(sourceBlob, targetProjectId) {
+    assert.instance(sourceBlob, Blob, 'bad sourceBlob')
+    assert.projectId(targetProjectId, 'bad targetProjectId')
+    const hash = sourceBlob.getHash()
+    const sourceProjectId = this.projectId
+    const { bucket, key: sourceKey } = getBlobLocation(sourceProjectId, hash)
+    const destKey = makeProjectKey(targetProjectId, hash)
+    const targetBackend = getBackend(targetProjectId)
+    logger.debug({ sourceProjectId, targetProjectId, hash }, 'copyBlob started')
+    try {
+      await persistor.copyObject(bucket, sourceKey, destKey)
+      await targetBackend.insertBlob(targetProjectId, sourceBlob)
+    } finally {
+      logger.debug(
+        { sourceProjectId, targetProjectId, hash },
+        'copyBlob finished'
+      )
+    }
+  }
 }
 
-module.exports = { BlobStore, loadGlobalBlobs }
+module.exports = {
+  BlobStore,
+  getProjectBlobsBatch,
+  loadGlobalBlobs,
+  makeProjectKey,
+  makeGlobalKey,
+  makeBlobForFile,
+  getStringLengthOfFile,
+  GLOBAL_BLOBS,
+}

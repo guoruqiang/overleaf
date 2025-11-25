@@ -6,9 +6,8 @@ import useIsMounted from '../../../../../../shared/hooks/use-is-mounted'
 import { deleteProject } from '../../../../util/api'
 import { useProjectListContext } from '../../../../context/project-list-context'
 import getMeta from '@/utils/meta'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
 
 type DeleteProjectButtonProps = {
   project: Project
@@ -76,8 +75,7 @@ const DeleteProjectButtonTooltip = memo(function DeleteProjectButtonTooltip({
               variant="link"
               accessibilityLabel={text}
               className="action-btn"
-              icon={bsVersion({ bs5: 'block', bs3: 'ban' })}
-              bs3Props={{ fw: true }}
+              icon="block"
             />
           </span>
         </OLTooltip>

@@ -1,6 +1,6 @@
-import { Subscription } from '../../app/src/models/Subscription.js'
-import RecurlyWrapper from '../../app/src/Features/Subscription/RecurlyWrapper.js'
-import SubscriptionUpdater from '../../app/src/Features/Subscription/SubscriptionUpdater.js'
+import { Subscription } from '../../app/src/models/Subscription.mjs'
+import RecurlyWrapper from '../../app/src/Features/Subscription/RecurlyWrapper.mjs'
+import SubscriptionUpdater from '../../app/src/Features/Subscription/SubscriptionUpdater.mjs'
 import minimist from 'minimist'
 import { setTimeout } from 'node:timers/promises'
 
@@ -89,20 +89,18 @@ const syncSubscription = async subscription => {
 
   ScriptLogger.recordMismatch(subscription, recurlySubscription)
 
-  if (!COMMIT) {
-    return
+  if (COMMIT) {
+    try {
+      await SubscriptionUpdater.promises.updateSubscriptionFromRecurly(
+        recurlySubscription,
+        subscription,
+        {}
+      )
+    } catch (error) {
+      await handleSyncSubscriptionError(subscription, error)
+    }
   }
 
-  try {
-    await SubscriptionUpdater.promises.updateSubscriptionFromRecurly(
-      recurlySubscription,
-      subscription,
-      {}
-    )
-  } catch (error) {
-    await handleSyncSubscriptionError(subscription, error)
-    return
-  }
   await setTimeout(80)
 }
 
@@ -179,6 +177,13 @@ const setup = () => {
   if (MONGO_SKIP) {
     console.warn(`Skipping first ${MONGO_SKIP} records`)
   }
+}
+
+if (process.env.NODE_ENV !== 'development') {
+  console.warn(
+    'This script can cause issues with manually amended subscriptions and can also exhaust our rate-limit with Recurly so is not intended to be run in production. Please use it in development environments only.'
+  )
+  process.exit(1)
 }
 
 setup()

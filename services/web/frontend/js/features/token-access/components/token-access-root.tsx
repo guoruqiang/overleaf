@@ -11,8 +11,8 @@ import {
   RequireAcceptData,
   RequireAcceptScreen,
 } from '@/features/token-access/components/require-accept-screen'
-import Icon from '@/shared/components/icon'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+import MaterialIcon from '@/shared/components/material-icon'
 
 type Mode = 'access-attempt' | 'v1Import' | 'requireAccept'
 
@@ -99,13 +99,9 @@ function TokenAccessRoot() {
 
   // We don't want the full-size div and back link(?) on
   // the new page, but we do this so the original page
-  // doesn't change. When tearing down we can clean up
-  // the DOM in the main return
-  if (
-    mode === 'requireAccept' &&
-    requireAcceptData &&
-    requireAcceptData.linkSharingChanges
-  ) {
+  // doesn't change.
+  // TODO: clean up the DOM in the main return
+  if (mode === 'requireAccept' && requireAcceptData) {
     return (
       <RequireAcceptScreen
         requireAcceptData={requireAcceptData}
@@ -115,14 +111,14 @@ function TokenAccessRoot() {
   }
 
   return (
-    <div className="full-size">
+    <div>
       <div>
         <a
           href="/project"
           // TODO: class name
           style={{ fontSize: '2rem', marginLeft: '1rem', color: '#ddd' }}
         >
-          <Icon type="arrow-left" />
+          <MaterialIcon type="arrow_left_alt" style={{ fontSize: 'inherit' }} />
         </a>
       </div>
 
@@ -137,15 +133,10 @@ function TokenAccessRoot() {
       {V1ImportDataScreen && mode === 'v1Import' && v1ImportData && (
         <V1ImportDataScreen v1ImportData={v1ImportData} />
       )}
-
-      {mode === 'requireAccept' && requireAcceptData && (
-        <RequireAcceptScreen
-          requireAcceptData={requireAcceptData}
-          sendPostRequest={sendPostRequest}
-        />
-      )}
     </div>
   )
 }
 
-export default withErrorBoundary(TokenAccessRoot, GenericErrorBoundaryFallback)
+export default withErrorBoundary(TokenAccessRoot, () => (
+  <GenericErrorBoundaryFallback />
+))

@@ -5,6 +5,13 @@ import classNames from 'classnames'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import { OutlineContainer } from '@/features/outline/components/outline-container'
 import { useOutlinePane } from '@/features/ide-react/hooks/use-outline-pane'
+import React, { ElementType } from 'react'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+import { t } from 'i18next'
+
+const editorSidebarComponents = importOverleafModules(
+  'editorSidebarComponents'
+) as { import: { default: ElementType }; path: string }[]
 
 export default function EditorSidebar() {
   const { view } = useLayoutContext()
@@ -12,11 +19,17 @@ export default function EditorSidebar() {
   const { outlineEnabled, outlinePanelRef } = useOutlinePane()
 
   return (
-    <aside
+    <nav
       className={classNames('ide-react-editor-sidebar', {
         hidden: view === 'history',
       })}
+      aria-label={t('project_files_outline')}
     >
+      {editorSidebarComponents.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
       <PanelGroup autoSaveId="ide-editor-sidebar-layout" direction="vertical">
         <Panel
           defaultSize={50}
@@ -42,6 +55,6 @@ export default function EditorSidebar() {
           <OutlineContainer />
         </Panel>
       </PanelGroup>
-    </aside>
+    </nav>
   )
 }

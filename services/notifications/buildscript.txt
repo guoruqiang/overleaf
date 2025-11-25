@@ -1,9 +1,11 @@
 notifications
 --dependencies=mongo
---docker-repos=us-east1-docker.pkg.dev/overleaf-ops/ol-docker
 --env-add=
 --env-pass-through=
 --esmock-loader=False
---node-version=18.20.4
+--node-version=22.18.0
 --public-repo=True
---script-version=4.5.0
+--test-acceptance-vitest=True
+--test-unit-vitest=True
+--ts-app=True
+--tsconfig-extra-includes=vitest.config.unit.cjs,vitest.config.acceptance.cjs

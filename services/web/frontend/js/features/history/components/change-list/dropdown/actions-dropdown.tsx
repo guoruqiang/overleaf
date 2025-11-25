@@ -1,96 +1,23 @@
-import React, { useRef, useEffect, ReactNode } from 'react'
-import { Dropdown as BS3Dropdown } from 'react-bootstrap'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import React, { ReactNode } from 'react'
 import {
   Dropdown,
   DropdownMenu,
-} from '@/features/ui/components/bootstrap-5/dropdown-menu'
-import BS3DropdownToggleWithTooltip from '../../../../ui/components/bootstrap-3/dropdown-toggle-with-tooltip'
-import BS5DropdownToggleWithTooltip from '@/features/ui/components/bootstrap-5/dropdown-toggle-with-tooltip'
-import DropdownMenuWithRef from '../../../../ui/components/bootstrap-3/dropdown-menu-with-ref'
+  DropdownToggle,
+} from '@/shared/components/dropdown/dropdown-menu'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 
 type ActionDropdownProps = {
   id: string
   children: React.ReactNode
-  parentSelector?: string
   isOpened: boolean
   iconTag: ReactNode
-  toolTipDescription: string
+  tooltipDescription: string
   setIsOpened: (isOpened: boolean) => void
 }
 
-function BS3ActionsDropdown({
-  id,
-  children,
-  parentSelector,
-  isOpened,
-  iconTag,
-  setIsOpened,
-  toolTipDescription,
-}: ActionDropdownProps) {
-  const menuRef = useRef<HTMLElement>()
-
-  // handle the placement of the dropdown above or below the toggle button
-  useEffect(() => {
-    if (menuRef.current && parentSelector) {
-      const parent = menuRef.current.closest(parentSelector)
-
-      if (!parent) {
-        return
-      }
-
-      const parentBottom = parent.getBoundingClientRect().bottom
-      const { top, height } = menuRef.current.getBoundingClientRect()
-
-      if (top + height > parentBottom) {
-        menuRef.current.style.bottom = '100%'
-        menuRef.current.style.top = 'auto'
-      } else {
-        menuRef.current.style.bottom = 'auto'
-        menuRef.current.style.top = '100%'
-      }
-    }
-  })
-
-  return (
-    <BS3Dropdown
-      id={`history-version-dropdown-${id}`}
-      pullRight
-      open={isOpened}
-      onToggle={open => setIsOpened(open)}
-      className="pull-right"
-    >
-      <BS3DropdownToggleWithTooltip
-        bsRole="toggle"
-        className="history-version-dropdown-menu-btn"
-        isOpened={isOpened}
-        tooltipProps={{
-          id,
-          description: toolTipDescription,
-          overlayProps: { placement: 'bottom', trigger: ['hover'] },
-        }}
-      >
-        {iconTag}
-      </BS3DropdownToggleWithTooltip>
-      <DropdownMenuWithRef
-        bsRole="menu"
-        className="history-version-dropdown-menu"
-        menuRef={menuRef}
-      >
-        {children}
-      </DropdownMenuWithRef>
-    </BS3Dropdown>
-  )
-}
-
-function BS5ActionsDropdown({
-  id,
-  children,
-  isOpened,
-  iconTag,
-  setIsOpened,
-  toolTipDescription,
-}: Omit<ActionDropdownProps, 'parentSelector'>) {
+function ActionsDropdown(props: ActionDropdownProps) {
+  const { id, children, isOpened, iconTag, setIsOpened, tooltipDescription } =
+    props
   return (
     <Dropdown
       align="end"
@@ -98,29 +25,27 @@ function BS5ActionsDropdown({
       show={isOpened}
       onToggle={open => setIsOpened(open)}
     >
-      <BS5DropdownToggleWithTooltip
+      <OLTooltip
         id={`history-version-dropdown-${id}`}
-        className="history-version-dropdown-menu-btn"
-        aria-label={toolTipDescription}
-        toolTipDescription={toolTipDescription}
-        overlayTriggerProps={{ placement: 'bottom' }}
-        tooltipProps={{ hidden: isOpened }}
+        description={tooltipDescription}
+        overlayProps={{ placement: 'bottom' }}
+        hidden={isOpened}
       >
-        {iconTag}
-      </BS5DropdownToggleWithTooltip>
+        {/* OverlayTrigger won't fire unless the child is a non-react html element (e.g div, span) */}
+        <span>
+          <DropdownToggle
+            id={`history-version-dropdown-toggle-${id}`}
+            className="history-version-dropdown-menu-btn"
+            as="button"
+          >
+            {iconTag}
+          </DropdownToggle>
+        </span>
+      </OLTooltip>
       <DropdownMenu className="history-version-dropdown-menu">
         {children}
       </DropdownMenu>
     </Dropdown>
-  )
-}
-
-function ActionsDropdown(props: ActionDropdownProps) {
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3ActionsDropdown {...props} />}
-      bs5={<BS5ActionsDropdown {...props} />}
-    />
   )
 }
 

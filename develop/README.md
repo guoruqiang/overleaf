@@ -11,12 +11,6 @@ bin/build
 > [!NOTE]
 > If Docker is running out of RAM while building the services in parallel, create a `.env` file in this directory containing `COMPOSE_PARALLEL_LIMIT=1`.
 
-Next, initialize the database:
-
-```shell
-bin/init
-```
-
 Then start the services:
 
 ```shell
@@ -48,7 +42,7 @@ To do this, use the included `bin/dev` script:
 bin/dev
 ```
 
-This will start all services using `nodemon`, which will automatically monitor the code and restart the services as necessary.
+This will start all services using `node --watch`, which will automatically monitor the code and restart the services as necessary.
 
 To improve performance, you can start only a subset of the services in development mode by providing a space-separated list to the `bin/dev` script:
 

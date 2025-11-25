@@ -1,13 +1,12 @@
 import { expect } from 'chai'
 import mongodb from 'mongodb-legacy'
 import mongoose from 'mongoose'
-import { User as UserModel } from '../../../app/src/models/User.js'
+import { User as UserModel } from '../../../app/src/models/User.mjs'
 import { db } from '../../../app/src/infrastructure/mongodb.js'
-import {
-  normalizeQuery,
-  normalizeMultiQuery,
-} from '../../../app/src/Features/Helpers/Mongo.js'
-import UserHelper from './helpers/User.js'
+import MongoHelpers from '../../../app/src/Features/Helpers/Mongo.mjs'
+import UserHelper from './helpers/User.mjs'
+
+const { normalizeQuery, normalizeMultiQuery } = MongoHelpers
 
 const User = UserHelper.promises
 

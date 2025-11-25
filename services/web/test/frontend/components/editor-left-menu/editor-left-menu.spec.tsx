@@ -1,15 +1,19 @@
-import '../../helpers/bootstrap-3'
 import EditorLeftMenu from '../../../../frontend/js/features/editor-left-menu/components/editor-left-menu'
 import {
-  AllowedImageName,
+  ImageName,
   OverallThemeMeta,
   SpellCheckLanguage,
 } from '../../../../types/project-settings'
-import { EditorProviders } from '../../helpers/editor-providers'
+import {
+  EditorProviders,
+  makeProjectProvider,
+} from '../../helpers/editor-providers'
 import { mockScope } from './scope'
 import { Folder } from '../../../../types/folder'
 import { docsInFolder } from '@/features/file-tree/util/docs-in-folder'
 import getMeta from '@/utils/meta'
+import { mockProject } from '../../features/source-editor/helpers/mock-project'
+import { UserId } from '../../../../types/user'
 
 describe('<EditorLeftMenu />', function () {
   beforeEach(function () {
@@ -31,20 +35,22 @@ describe('<EditorLeftMenu />', function () {
       },
     ]
 
-    const allowedImageNames: AllowedImageName[] = [
+    const ImageNames: ImageName[] = [
       {
         imageDesc: 'Image 1',
         imageName: 'img-1',
+        allowed: true,
       },
       {
         imageDesc: 'Image 2',
         imageName: 'img-2',
+        allowed: true,
       },
     ]
 
     beforeEach(function () {
       window.metaAttributesCache.set('ol-overallThemes', overallThemes)
-      window.metaAttributesCache.set('ol-allowedImageNames', allowedImageNames)
+      window.metaAttributesCache.set('ol-imageNames', ImageNames)
       window.metaAttributesCache.set('ol-anonymous', false)
       window.metaAttributesCache.set('ol-gitBridgeEnabled', true)
       window.metaAttributesCache.set('ol-showSupport', true)
@@ -57,14 +63,15 @@ describe('<EditorLeftMenu />', function () {
     })
 
     it('render full menu', function () {
-      const scope = mockScope({
-        ui: {
-          leftMenuShown: true,
-        },
-      })
+      const scope = mockScope()
+      const project = mockProject()
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders
+          scope={scope}
+          layoutContext={{ leftMenuShown: true }}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
           <EditorLeftMenu />
         </EditorProviders>
       )
@@ -76,7 +83,7 @@ describe('<EditorLeftMenu />', function () {
 
       // Actions Menu
       cy.findByRole('heading', { name: 'Actions' })
-      cy.findByRole('button', { name: 'Copy Project' })
+      cy.findByRole('button', { name: 'Copy project' })
       cy.findByRole('button', { name: 'Word Count' })
 
       // Sync Menu
@@ -92,7 +99,7 @@ describe('<EditorLeftMenu />', function () {
       cy.findByLabelText('Main document')
       cy.findByLabelText('Spell check')
       cy.findByLabelText('Auto-complete')
-      cy.findByLabelText('Auto-close Brackets')
+      cy.findByLabelText('Auto-close brackets')
       cy.findByLabelText('Code check')
       cy.findByLabelText('Editor theme')
       cy.findByLabelText('Overall theme')
@@ -106,19 +113,17 @@ describe('<EditorLeftMenu />', function () {
       cy.findByRole('heading', { name: 'Help' })
       cy.findByRole('button', { name: 'Show Hotkeys' })
       cy.findByRole('link', { name: 'Documentation' })
-      cy.findByRole('button', { name: 'Contact Us' })
+      cy.findByRole('button', { name: 'Contact us' })
     })
 
     describe('download menu', function () {
       it('have a correct source & pdf download url', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
-
+        const scope = mockScope()
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -143,30 +148,29 @@ describe('<EditorLeftMenu />', function () {
           },
         })
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
 
-        cy.findByRole('button', { name: 'Copy Project' }).click()
-        cy.findByRole('heading', { name: 'Copy Project' })
+        cy.findByRole('button', { name: 'Copy project' }).click()
+        cy.findByRole('heading', { name: 'Copy project' })
 
         // try closing & re-opening the modal with different methods
-        cy.findByRole('button', { name: 'Close' }).click()
-        cy.findByRole('button', { name: 'Copy Project' }).click()
+        cy.findByRole('button', { name: 'Close dialog' }).click()
+        cy.findByRole('button', { name: 'Copy project' }).click()
         cy.findByRole('button', { name: 'Cancel' }).click()
-        cy.findByRole('button', { name: 'Copy Project' }).click()
+        cy.findByRole('button', { name: 'Copy project' }).click()
 
-        cy.findByLabelText('New Name').focus()
-        cy.findByLabelText('New Name').clear()
-        cy.findByLabelText('New Name').type('Project Renamed')
+        cy.findByLabelText(/New name/i).focus()
+        cy.findByLabelText(/New name/i).clear()
+        cy.findByLabelText(/New name/i).type('Project Renamed')
         cy.get('#clone-project-form-name[value="Project Renamed"')
       })
 
@@ -185,14 +189,13 @@ describe('<EditorLeftMenu />', function () {
           },
         }).as('wordCount')
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -218,15 +221,6 @@ describe('<EditorLeftMenu />', function () {
         })
 
         const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-          project: {
-            members: [],
-            owner: {
-              _id: '123',
-            },
-          },
           user: {
             features: {
               dropbox: false,
@@ -235,7 +229,18 @@ describe('<EditorLeftMenu />', function () {
         })
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+            projectOwner={{
+              _id: '123' as UserId,
+              email: 'owner@example.com',
+              first_name: 'Test',
+              last_name: 'Owner',
+              privileges: 'owner',
+              signUpDate: new Date('2025-07-07').toISOString(),
+            }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -245,22 +250,26 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows git modal correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-          project: {
-            owner: {
-              _id: '123',
-            },
-            features: {
-              gitBridge: true,
-            },
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+            projectOwner={{
+              _id: '123' as UserId,
+              email: 'owner@example.com',
+              first_name: 'Test',
+              last_name: 'Owner',
+              privileges: 'owner',
+              signUpDate: new Date('2025-07-07').toISOString(),
+            }}
+            projectFeatures={
+              {
+                gitBridge: true,
+              } as any
+            }
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -271,22 +280,26 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows git modal paywall correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-          project: {
-            owner: {
-              _id: '123',
-            },
-            features: {
-              gitBridge: false,
-            },
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+            projectOwner={{
+              _id: '123' as UserId,
+              email: 'owner@example.com',
+              first_name: 'Test',
+              last_name: 'Owner',
+              privileges: 'owner',
+              signUpDate: new Date('2025-07-07').toISOString(),
+            }}
+            projectFeatures={
+              {
+                gitBridge: false,
+              } as any
+            }
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -305,14 +318,13 @@ describe('<EditorLeftMenu />', function () {
           enabled: false,
         }).as('project-status')
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -336,14 +348,13 @@ describe('<EditorLeftMenu />', function () {
 
     describe('settings menu', function () {
       it('shows compiler menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -370,14 +381,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows texlive version menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -411,14 +421,14 @@ describe('<EditorLeftMenu />', function () {
           folders: [],
         }
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope} rootFolder={[rootFolder as any]}>
+          <EditorProviders
+            layoutContext={{ leftMenuShown: true }}
+            scope={scope}
+            rootFolder={[rootFolder as any]}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -452,14 +462,13 @@ describe('<EditorLeftMenu />', function () {
 
         window.metaAttributesCache.set('ol-languages', languages)
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -476,14 +485,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows dictionary modal correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -494,14 +502,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows auto-complete menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -518,14 +525,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows auto-close brackets menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -542,14 +548,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows code check menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -580,14 +585,13 @@ describe('<EditorLeftMenu />', function () {
           legacyEditorThemes
         )
 
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -620,14 +624,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows overall theme menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -644,14 +647,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows keybindings menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -668,14 +670,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows font size menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -714,14 +715,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows font family menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -742,14 +742,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows line height menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -766,14 +765,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows pdf viewer menu correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -792,14 +790,13 @@ describe('<EditorLeftMenu />', function () {
 
     describe('help menu', function () {
       it('shows hotkeys modal correctly', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -809,14 +806,13 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows correct url for documentation', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
@@ -829,19 +825,18 @@ describe('<EditorLeftMenu />', function () {
       })
 
       it('shows correct contact us modal', function () {
-        const scope = mockScope({
-          ui: {
-            leftMenuShown: true,
-          },
-        })
+        const scope = mockScope()
 
         cy.mount(
-          <EditorProviders scope={scope}>
+          <EditorProviders
+            scope={scope}
+            layoutContext={{ leftMenuShown: true }}
+          >
             <EditorLeftMenu />
           </EditorProviders>
         )
 
-        cy.findByRole('button', { name: 'Contact Us' }).click()
+        cy.findByRole('button', { name: 'Contact us' }).click()
         cy.findByText('Affected project URL (Optional)')
       })
     })
@@ -849,16 +844,13 @@ describe('<EditorLeftMenu />', function () {
 
   describe('for anonymous users', function () {
     it('render minimal menu', function () {
-      const scope = mockScope({
-        ui: {
-          leftMenuShown: true,
-        },
-      })
+      const scope = mockScope()
+
       window.metaAttributesCache.set('ol-anonymous', true)
       Object.assign(getMeta('ol-ExposedSettings'), { ieeeBrandId: 123 })
 
       cy.mount(
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} layoutContext={{ leftMenuShown: true }}>
           <EditorLeftMenu />
         </EditorProviders>
       )
@@ -870,7 +862,7 @@ describe('<EditorLeftMenu />', function () {
 
       // Actions Menu
       cy.findByRole('heading', { name: 'Actions' }).should('not.exist')
-      cy.findByRole('button', { name: 'Copy Project' }).should('not.exist')
+      cy.findByRole('button', { name: 'Copy project' }).should('not.exist')
       cy.findByRole('button', { name: 'Word Count' }).should('not.exist')
 
       // Sync Menu
@@ -886,7 +878,7 @@ describe('<EditorLeftMenu />', function () {
       cy.findByLabelText('Main document').should('not.exist')
       cy.findByLabelText('Spell check').should('not.exist')
       cy.findByLabelText('Auto-complete').should('not.exist')
-      cy.findByLabelText('Auto-close Brackets').should('not.exist')
+      cy.findByLabelText('Auto-close brackets').should('not.exist')
       cy.findByLabelText('Code check').should('not.exist')
       cy.findByLabelText('Editor theme').should('not.exist')
       cy.findByLabelText('Overall theme').should('not.exist')
@@ -900,7 +892,7 @@ describe('<EditorLeftMenu />', function () {
       cy.findByRole('heading', { name: 'Help' })
       cy.findByRole('button', { name: 'Show Hotkeys' })
       cy.findByRole('button', { name: 'Documentation' }).should('not.exist')
-      cy.findByRole('link', { name: 'Contact Us' }).should('not.exist')
+      cy.findByRole('link', { name: 'Contact us' }).should('not.exist')
     })
   })
 })

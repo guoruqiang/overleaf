@@ -7,9 +7,9 @@ import ManagedUserCannotJoin from './managed-user-cannot-join'
 import Notification from '@/shared/components/notification'
 import JoinGroup from './join-group'
 import AcceptedInvite from './accepted-invite'
-import OLRow from '@/features/ui/components/ol/ol-row'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLPageContentCard from '@/features/ui/components/ol/ol-page-content-card'
+import OLRow from '@/shared/components/ol/ol-row'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
 
 export type InviteViewTypes =
   | 'invite'
@@ -19,20 +19,20 @@ export type InviteViewTypes =
   | undefined
 
 function GroupInviteViews() {
-  const hasIndividualRecurlySubscription = getMeta(
-    'ol-hasIndividualRecurlySubscription'
+  const hasIndividualPaidSubscription = getMeta(
+    'ol-hasIndividualPaidSubscription'
   )
   const cannotJoinSubscription = getMeta('ol-cannot-join-subscription')
 
   useEffect(() => {
     if (cannotJoinSubscription) {
       setView('managed-user-cannot-join')
-    } else if (hasIndividualRecurlySubscription) {
+    } else if (hasIndividualPaidSubscription) {
       setView('cancel-personal-subscription')
     } else {
       setView('invite')
     }
-  }, [cannotJoinSubscription, hasIndividualRecurlySubscription])
+  }, [cannotJoinSubscription, hasIndividualPaidSubscription])
   const [view, setView] = useState<InviteViewTypes>(undefined)
 
   if (!view) {

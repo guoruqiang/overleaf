@@ -9,11 +9,13 @@ import getMeta from '../../../../utils/meta'
 import { InsertFigureDropdown } from './insert-figure-dropdown'
 import { useTranslation } from 'react-i18next'
 import { MathDropdown } from './math-dropdown'
-import { TableInserterDropdown } from './table-inserter-dropdown'
+import { TableDropdown } from './table-dropdown'
+import { LegacyTableDropdown } from './table-inserter-dropdown-legacy'
 import { withinFormattingCommand } from '@/features/source-editor/utils/tree-operations/formatting'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-
-const isMac = /Mac/.test(window.navigator?.platform)
+import { isMac } from '@/shared/utils/os'
+import { useProjectContext } from '@/shared/context/project-context'
+import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
+import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
 
 export const ToolbarItems: FC<{
   state: EditorState
@@ -29,7 +31,11 @@ export const ToolbarItems: FC<{
   listDepth,
 }) {
   const { t } = useTranslation()
-  const { toggleSymbolPalette, showSymbolPalette } = useEditorContext()
+  const { showSymbolPalette, toggleSymbolPalette } =
+    useEditorPropertiesContext()
+  const { writefullInstance } = useEditorContext()
+  const { features } = useProjectContext()
+  const permissions = usePermissionsContext()
   const isActive = withinFormattingCommand(state)
 
   const symbolPaletteAvailable = getMeta('ol-symbolPaletteAvailable')
@@ -46,14 +52,14 @@ export const ToolbarItems: FC<{
             id="toolbar-undo"
             label={t('toolbar_undo')}
             command={undo}
-            icon={bsVersion({ bs5: 'undo', bs3: 'undo' })}
+            icon="undo"
             shortcut={isMac ? '⌘Z' : 'Ctrl+Z'}
           />
           <ToolbarButton
             id="toolbar-redo"
             label={t('toolbar_redo')}
             command={redo}
-            icon={bsVersion({ bs5: 'redo', bs3: 'repeat' })}
+            icon="redo"
             shortcut={isMac ? '⇧⌘Z' : 'Ctrl+Y'}
           />
         </div>
@@ -76,18 +82,18 @@ export const ToolbarItems: FC<{
             >
               <ToolbarButton
                 id="toolbar-format-bold"
-                label={t('toolbar_format_bold')}
+                label={t('toolbar_bold')}
                 command={commands.toggleBold}
                 active={isActive('\\textbf')}
-                icon={bsVersion({ bs5: 'format_bold', bs3: 'bold' })}
+                icon="format_bold"
                 shortcut={isMac ? '⌘B' : 'Ctrl+B'}
               />
               <ToolbarButton
                 id="toolbar-format-italic"
-                label={t('toolbar_format_italic')}
+                label={t('toolbar_italic')}
                 command={commands.toggleItalic}
                 active={isActive('\\textit')}
-                icon={bsVersion({ bs5: 'format_italic', bs3: 'italic' })}
+                icon="format_italic"
                 shortcut={isMac ? '⌘I' : 'Ctrl+I'}
               />
             </div>
@@ -102,7 +108,7 @@ export const ToolbarItems: FC<{
               {symbolPaletteAvailable && (
                 <ToolbarButton
                   id="toolbar-toggle-symbol-palette"
-                  label={t('toolbar_toggle_symbol_palette')}
+                  label={t('toolbar_insert_symbol')}
                   active={showSymbolPalette}
                   command={toggleSymbolPalette}
                   icon="Ω"
@@ -122,22 +128,31 @@ export const ToolbarItems: FC<{
                 id="toolbar-href"
                 label={t('toolbar_insert_link')}
                 command={commands.wrapInHref}
-                icon={bsVersion({ bs5: 'add_link', bs3: 'link' })}
+                icon="add_link"
               />
+              {features.trackChangesVisible && permissions.comment && (
+                <ToolbarButton
+                  id="toolbar-add-comment"
+                  label={t('add_comment')}
+                  disabled={state.selection.main.empty}
+                  command={commands.addComment}
+                  icon="add_comment"
+                />
+              )}
               <ToolbarButton
                 id="toolbar-ref"
                 label={t('toolbar_insert_cross_reference')}
                 command={commands.insertRef}
-                icon={bsVersion({ bs5: 'sell', bs3: 'tag' })}
+                icon="sell"
               />
               <ToolbarButton
                 id="toolbar-cite"
                 label={t('toolbar_insert_citation')}
                 command={commands.insertCite}
-                icon={bsVersion({ bs5: 'book_5', bs3: 'book' })}
+                icon="book_5"
               />
               <InsertFigureDropdown />
-              <TableInserterDropdown />
+              {writefullInstance ? <TableDropdown /> : <LegacyTableDropdown />}
             </div>
           )}
           {showGroup('group-list') && (
@@ -148,30 +163,21 @@ export const ToolbarItems: FC<{
             >
               <ToolbarButton
                 id="toolbar-bullet-list"
-                label={t('toolbar_bullet_list')}
+                label={t('toolbar_bulleted_list')}
                 command={commands.toggleBulletList}
-                icon={bsVersion({
-                  bs5: 'format_list_bulleted',
-                  bs3: 'list-ul',
-                })}
+                icon="format_list_bulleted"
               />
               <ToolbarButton
                 id="toolbar-numbered-list"
                 label={t('toolbar_numbered_list')}
                 command={commands.toggleNumberedList}
-                icon={bsVersion({
-                  bs5: 'format_list_numbered',
-                  bs3: 'list-ol',
-                })}
+                icon="format_list_numbered"
               />
               <ToolbarButton
                 id="toolbar-format-indent-decrease"
                 label={t('toolbar_decrease_indent')}
                 command={commands.indentDecrease}
-                icon={bsVersion({
-                  bs5: 'format_indent_decrease',
-                  bs3: 'outdent',
-                })}
+                icon="format_indent_decrease"
                 shortcut={visual ? (isMac ? '⌘[' : 'Ctrl+[') : undefined}
                 disabled={listDepth < 2}
               />
@@ -179,10 +185,7 @@ export const ToolbarItems: FC<{
                 id="toolbar-format-indent-increase"
                 label={t('toolbar_increase_indent')}
                 command={commands.indentIncrease}
-                icon={bsVersion({
-                  bs5: 'format_indent_increase',
-                  bs3: 'indent',
-                })}
+                icon="format_indent_increase"
                 shortcut={visual ? (isMac ? '⌘]' : 'Ctrl+]') : undefined}
                 disabled={listDepth < 1}
               />

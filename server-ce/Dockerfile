@@ -14,6 +14,7 @@ ADD server-ce/services.js /overleaf/services.js
 ADD package.json package-lock.json /overleaf/
 ADD libraries/ /overleaf/libraries/
 ADD services/ /overleaf/services/
+ADD tools/migrations/ /overleaf/tools/migrations/
 
 # Add npm patches
 # -----------------------
@@ -115,9 +116,3 @@ ENV LOG_LEVEL="info"
 EXPOSE 80
 
 ENTRYPOINT ["/sbin/my_init"]
-
-# Store the revision
-# ------------------
-# This should be the last step to optimize docker image caching.
-ARG MONOREPO_REVISION
-RUN echo "monorepo-server-ce,$MONOREPO_REVISION" > /var/www/revisions.txt

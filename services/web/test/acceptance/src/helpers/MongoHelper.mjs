@@ -1,10 +1,11 @@
-import { execFile } from 'child_process'
+import { exec } from 'node:child_process'
 import {
   connectionPromise,
-  db,
+  cleanupTestDatabase,
   dropTestDatabase,
 } from '../../../../app/src/infrastructure/mongodb.js'
 import Settings from '@overleaf/settings'
+import { promisify } from 'node:util'
 
 const DEFAULT_ENV = 'saas'
 
@@ -17,33 +18,14 @@ export default {
       before('drop test database', dropTestDatabase)
     }
 
-    before('run migrations', function (done) {
-      const args = [
-        'run',
-        'migrations',
-        '--',
-        'migrate',
-        '-t',
-        Settings.env || DEFAULT_ENV,
-      ]
-      execFile('npm', args, (error, stdout, stderr) => {
-        if (error) {
-          throw error
-        }
-        done()
-      })
-    })
+    before('run migrations', async function () {
+      this.timeout(60_000)
 
-    afterEach('purge mongo data', async function () {
-      return Promise.all(
-        Object.values(db).map(async collection => {
-          if (collection === db.migrations) {
-            // Do not clear the collection for tracking migrations.
-            return
-          }
-          return collection.deleteMany({})
-        })
+      await promisify(exec)(
+        `cd ../../tools/migrations && npm run migrations -- migrate -t ${Settings.env || DEFAULT_ENV}`
       )
     })
+
+    afterEach('purge mongo data', cleanupTestDatabase)
   },
 }

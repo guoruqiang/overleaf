@@ -4,22 +4,17 @@ import { useTranslation } from 'react-i18next'
 import MessageInput from './message-input'
 import InfiniteScroll from './infinite-scroll'
 import ChatFallbackError from './chat-fallback-error'
-import Icon from '../../../shared/components/icon'
 import { useLayoutContext } from '../../../shared/context/layout-context'
 import { useUserContext } from '../../../shared/context/user-context'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import { FetchError } from '../../../infrastructure/fetch-json'
 import { useChatContext } from '../context/chat-context'
 import { FullSizeLoadingSpinner } from '../../../shared/components/loading-spinner'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 import MaterialIcon from '@/shared/components/material-icon'
 
 const MessageList = lazy(() => import('./message-list'))
 
-const Loading = () => (
-  <FullSizeLoadingSpinner delay={500} className={bsVersion({ bs5: 'pt-4' })} />
-)
+const Loading = () => <FullSizeLoadingSpinner delay={500} className="pt-4" />
 
 const ChatPane = React.memo(function ChatPane() {
   const { t } = useTranslation()
@@ -48,10 +43,7 @@ const ChatPane = React.memo(function ChatPane() {
 
   const shouldDisplayPlaceholder = status !== 'pending' && messages.length === 0
 
-  const messageContentCount = messages.reduce(
-    (acc, { contents }) => acc + contents.length,
-    0
-  )
+  const messageContentCount = messages.length
 
   // Keep the chat pane in the DOM to avoid resetting the form input and re-rendering MathJax content.
   const [chatOpenedOnce, setChatOpenedOnce] = useState(chatIsOpen)
@@ -77,7 +69,7 @@ const ChatPane = React.memo(function ChatPane() {
   }
 
   return (
-    <aside className="chat">
+    <aside className="chat" aria-label={t('chat')}>
       <InfiniteScroll
         atEnd={atEnd}
         className="messages"
@@ -86,15 +78,12 @@ const ChatPane = React.memo(function ChatPane() {
         itemCount={messageContentCount}
       >
         <div>
-          <h2 className={bsVersion({ bs3: 'sr-only', bs5: 'visually-hidden' })}>
-            {t('chat')}
-          </h2>
+          <h2 className="visually-hidden">{t('chat')}</h2>
           <Suspense fallback={<Loading />}>
             {status === 'pending' && <Loading />}
             {shouldDisplayPlaceholder && <Placeholder />}
             <MessageList
               messages={messages}
-              userId={user.id}
               resetUnreadMessages={markMessagesAsRead}
             />
           </Suspense>
@@ -116,13 +105,10 @@ function Placeholder() {
       <div className="first-message text-center">
         {t('send_first_message')}
         <br />
-        <BootstrapVersionSwitcher
-          bs3={<Icon type="arrow-down" />}
-          bs5={<MaterialIcon type="arrow_downward" />}
-        />
+        <MaterialIcon type="arrow_downward" />
       </div>
     </>
   )
 }
 
-export default withErrorBoundary(ChatPane, ChatFallbackError)
+export default withErrorBoundary(ChatPane, () => <ChatFallbackError />)

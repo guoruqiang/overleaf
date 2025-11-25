@@ -8,13 +8,14 @@ import {
   setSectionHeadingLevel,
 } from '../../extensions/toolbar/sections'
 import { useCallback, useMemo, useRef } from 'react'
-import OLOverlay from '@/features/ui/components/ol/ol-overlay'
-import OLPopover from '@/features/ui/components/ol/ol-popover'
+import OLOverlay from '@/shared/components/ol/ol-overlay'
+import OLPopover from '@/shared/components/ol/ol-popover'
 import useEventListener from '../../../../shared/hooks/use-event-listener'
 import useDropdown from '../../../../shared/hooks/use-dropdown'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
-import Icon from '../../../../shared/components/icon'
+import MaterialIcon from '@/shared/components/material-icon'
 import { useTranslation } from 'react-i18next'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 
 const levels = new Map([
   ['text', 'Normal text'],
@@ -54,20 +55,26 @@ export const SectionHeadingDropdown = () => {
 
   return (
     <>
-      <button
-        ref={toggleButtonRef}
-        type="button"
-        id="section-heading-menu-button"
-        aria-haspopup="true"
-        aria-controls="section-heading-menu"
-        aria-label={t('toolbar_choose_section_heading_level')}
-        className="ol-cm-toolbar-menu-toggle"
-        onMouseDown={event => event.preventDefault()}
-        onClick={() => setOverflowOpen(!overflowOpen)}
+      <OLTooltip
+        id="section-heading-dropdown-tooltip"
+        description={t('toolbar_select_style')}
+        overlayProps={{ placement: 'bottom' }}
       >
-        <span>{currentLabel}</span>
-        <Icon type="caret-down" fw />
-      </button>
+        <button
+          ref={toggleButtonRef}
+          type="button"
+          id="section-heading-menu-button"
+          aria-haspopup="true"
+          aria-controls="section-heading-menu"
+          aria-label={t('toolbar_choose_section_heading_level')}
+          className="ol-cm-toolbar-menu-toggle"
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => setOverflowOpen(!overflowOpen)}
+        >
+          <span>{currentLabel}</span>
+          <MaterialIcon type="expand_more" />
+        </button>
+      </OLTooltip>
 
       {overflowOpen && (
         <OLOverlay

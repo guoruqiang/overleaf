@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { memo } from 'react'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import { ButtonProps } from '@/features/ui/components/types/button-props'
+} from '@/shared/components/ol/ol-modal'
+import OLButton from '@/shared/components/ol/ol-button'
+import { ButtonProps } from '@/shared/components/types/button-props'
 
 export type GenericConfirmModalOwnProps = {
   title: string
@@ -25,14 +26,14 @@ function GenericConfirmModal({
   message,
   confirmLabel,
   primaryVariant = 'primary',
+  onConfirm,
   ...modalProps
 }: GenericConfirmModalProps) {
   const { t } = useTranslation()
-  const handleConfirmClick = modalProps.onConfirm
 
   return (
     <OLModal {...modalProps}>
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{title}</OLModalTitle>
       </OLModalHeader>
 
@@ -42,7 +43,7 @@ function GenericConfirmModal({
         <OLButton variant="secondary" onClick={() => modalProps.onHide()}>
           {t('cancel')}
         </OLButton>
-        <OLButton variant={primaryVariant} onClick={handleConfirmClick}>
+        <OLButton variant={primaryVariant} onClick={onConfirm}>
           {confirmLabel || t('ok')}
         </OLButton>
       </OLModalFooter>

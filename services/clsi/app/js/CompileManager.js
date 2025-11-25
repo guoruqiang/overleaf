@@ -11,7 +11,7 @@ const ResourceWriter = require('./ResourceWriter')
 const LatexRunner = require('./LatexRunner')
 const OutputFileFinder = require('./OutputFileFinder')
 const OutputCacheManager = require('./OutputCacheManager')
-const Metrics = require('./Metrics')
+const ClsiMetrics = require('./Metrics')
 const DraftModeManager = require('./DraftModeManager')
 const TikzManager = require('./TikzManager')
 const LockManager = require('./LockManager')
@@ -19,12 +19,28 @@ const Errors = require('./Errors')
 const CommandRunner = require('./CommandRunner')
 const { emitPdfStats } = require('./ContentCacheMetrics')
 const SynctexOutputParser = require('./SynctexOutputParser')
+const {
+  downloadLatestCompileCache,
+  downloadOutputDotSynctexFromCompileCache,
+} = require('./CLSICacheHandler')
+const StatsManager = require('./StatsManager')
+const SafeReader = require('./SafeReader')
+const { enableLatexMkMetrics, addLatexFdbMetrics } = require('./LatexMetrics')
+const { callbackifyMultiResult } = require('@overleaf/promise-utils')
 
-const COMPILE_TIME_BUCKETS = [
-  // NOTE: These buckets are locked in per metric name.
-  //       If you want to change them, you will need to rename metrics.
-  0, 1, 2, 3, 4, 6, 8, 11, 15, 22, 31, 43, 61, 86, 121, 170, 240,
-].map(seconds => seconds * 1000)
+const KNOWN_LATEXMK_RULES = new Set([
+  'biber',
+  'bibtex',
+  'dvipdf',
+  'latex',
+  'lualatex',
+  'makeindex',
+  'pdflatex',
+  'xdvipdfmx',
+  'xelatex',
+])
+
+const LATEX_PASSES_RULES = new Set(['latex', 'lualatex', 'xelatex', 'pdflatex'])
 
 function getCompileName(projectId, userId) {
   if (userId != null) {
@@ -42,34 +58,46 @@ function getOutputDir(projectId, userId) {
   return Path.join(Settings.path.outputDir, getCompileName(projectId, userId))
 }
 
-async function doCompileWithLock(request) {
+async function doCompileWithLock(request, stats, timings) {
   const compileDir = getCompileDir(request.project_id, request.user_id)
-  await fsPromises.mkdir(compileDir, { recursive: true })
+  request.isInitialCompile =
+    (await fsPromises.mkdir(compileDir, { recursive: true })) === compileDir
   // prevent simultaneous compiles
   const lock = LockManager.acquire(compileDir)
   try {
-    return await doCompile(request)
+    return await doCompile(request, stats, timings)
   } finally {
     lock.release()
   }
 }
 
-async function doCompile(request) {
+async function doCompile(request, stats, timings) {
+  const { project_id: projectId, user_id: userId } = request
   const compileDir = getCompileDir(request.project_id, request.user_id)
-  const stats = {}
-  const timings = {}
 
-  const timerE2E = new Metrics.Timer(
-    'compile-e2e-v2',
-    1,
-    request.metricsOpts,
-    COMPILE_TIME_BUCKETS
-  )
-  const writeToDiskTimer = new Metrics.Timer(
-    'write-to-disk',
-    1,
-    request.metricsOpts
-  )
+  const e2eCompileStart = Date.now()
+
+  if (request.isInitialCompile) {
+    stats.isInitialCompile = 1
+    request.metricsOpts.compile = 'initial'
+    if (request.compileFromClsiCache) {
+      try {
+        if (await downloadLatestCompileCache(projectId, userId, compileDir)) {
+          stats.restoredClsiCache = 1
+          request.metricsOpts.compile = 'from-clsi-cache'
+        }
+      } catch (err) {
+        logger.warn(
+          { err, projectId, userId },
+          'failed to populate compile dir from cache'
+        )
+      }
+    }
+  } else {
+    request.metricsOpts.compile = 'recompile'
+  }
+
+  const syncStart = Date.now()
   logger.debug(
     { projectId: request.project_id, userId: request.user_id },
     'syncing resources to disk'
@@ -96,15 +124,16 @@ async function doCompile(request) {
     }
     throw error
   }
+
+  timings.sync = Date.now() - syncStart
   logger.debug(
     {
       projectId: request.project_id,
       userId: request.user_id,
-      timeTaken: Date.now() - writeToDiskTimer.start,
+      timeTaken: timings.sync,
     },
     'written files to disk'
   )
-  timings.sync = writeToDiskTimer.done()
 
   // set up environment variables for chktex
   const env = {
@@ -150,22 +179,19 @@ async function doCompile(request) {
     )
   }
 
-  const compileTimer = new Metrics.Timer('run-compile', 1, request.metricsOpts)
-  // find the image tag to log it as a metric, e.g. 2015.1 (convert . to - for graphite)
-  let tag = 'default'
-  if (request.imageName != null) {
-    const match = request.imageName.match(/:(.*)/)
-    if (match != null) {
-      tag = match[1].replace(/\./g, '-')
-    }
-  }
-  // exclude smoke test
-  if (!request.project_id.match(/^[0-9a-f]{24}$/)) {
-    tag = 'other'
-  }
-  Metrics.inc('compiles', 1, request.metricsOpts)
-  Metrics.inc(`compiles-with-image.${tag}`, 1, request.metricsOpts)
+  const compileStart = Date.now()
+
   const compileName = getCompileName(request.project_id, request.user_id)
+
+  // Record latexmk -time stats for a subset of users
+  const recordPerformanceMetrics = StatsManager.sampleRequest(
+    request,
+    Settings.performanceLogSamplingPercentage
+  )
+
+  // Define a `latexmk` property on the stats object
+  // to collect latexmk -time stats.
+  enableLatexMkMetrics(stats)
 
   try {
     await LatexRunner.promises.runLatex(compileName, {
@@ -203,11 +229,6 @@ async function doCompile(request) {
       error.validate = 'fail'
     }
 
-    // record timeout errors as a separate counter, success is recorded later
-    if (error.timedout) {
-      Metrics.inc('compiles-timeout', 1, request.metricsOpts)
-    }
-
     const { outputFiles, allEntries, buildId } = await _saveOutputFiles({
       request,
       compileDir,
@@ -226,59 +247,30 @@ async function doCompile(request) {
       )
     }
 
+    if (!_shouldSkipMetrics(request)) {
+      const status = error.timedout
+        ? 'timeout'
+        : error.terminated
+          ? 'terminated'
+          : 'failure'
+      timings.compile = Date.now() - compileStart
+      _emitMetrics(request, status, stats, timings)
+    }
     throw error
   }
 
-  // compile completed normally
-  Metrics.inc('compiles-succeeded', 1, request.metricsOpts)
-  for (const metricKey in stats) {
-    const metricValue = stats[metricKey]
-    Metrics.count(metricKey, metricValue, 1, request.metricsOpts)
-  }
-  for (const metricKey in timings) {
-    const metricValue = timings[metricKey]
-    Metrics.timing(metricKey, metricValue, 1, request.metricsOpts)
-  }
-  const loadavg = typeof os.loadavg === 'function' ? os.loadavg() : undefined
-  if (loadavg != null) {
-    Metrics.gauge('load-avg', loadavg[0])
-  }
-  const ts = compileTimer.done()
+  timings.compile = Date.now() - compileStart
+
   logger.debug(
     {
       projectId: request.project_id,
       userId: request.user_id,
-      timeTaken: ts,
+      timeTaken: timings.compile,
       stats,
       timings,
-      loadavg,
     },
     'done compile'
   )
-  if (stats['latex-runs'] > 0) {
-    Metrics.histogram(
-      'avg-compile-per-pass-v2',
-      ts / stats['latex-runs'],
-      COMPILE_TIME_BUCKETS,
-      request.metricsOpts
-    )
-    Metrics.timing(
-      'avg-compile-per-pass-v2',
-      ts / stats['latex-runs'],
-      1,
-      request.metricsOpts
-    )
-  }
-  if (stats['latex-runs'] > 0 && timings['cpu-time'] > 0) {
-    Metrics.timing(
-      'run-compile-cpu-time-per-pass',
-      timings['cpu-time'] / stats['latex-runs'],
-      1,
-      request.metricsOpts
-    )
-  }
-  // Emit compile time.
-  timings.compile = ts
 
   const { outputFiles, buildId } = await _saveOutputFiles({
     request,
@@ -287,16 +279,53 @@ async function doCompile(request) {
     stats,
     timings,
   })
+  timings.compileE2E = Date.now() - e2eCompileStart
 
-  // Emit e2e compile time.
-  timings.compileE2E = timerE2E.done()
-  Metrics.timing('compile-e2e-v2', timings.compileE2E, 1, request.metricsOpts)
+  const status = stats['latexmk-errors'] ? 'error' : 'success'
+  _emitMetrics(request, status, stats, timings)
 
   if (stats['pdf-size']) {
     emitPdfStats(stats, timings, request)
   }
 
-  return { outputFiles, stats, timings, buildId }
+  // Record compile performance for a subset of users
+  if (recordPerformanceMetrics) {
+    // Add fdb metrics if available
+    try {
+      const fdbFileContent = await _readFdbFile(compileDir)
+      if (fdbFileContent) {
+        addLatexFdbMetrics(fdbFileContent, stats)
+      }
+    } catch (err) {
+      // ignore errors reading fdb file
+      logger.warn(
+        { err, projectId, userId },
+        'error reading fdb file for performance metrics'
+      )
+    }
+
+    const loadavg = typeof os.loadavg === 'function' ? os.loadavg() : undefined
+
+    logger.info(
+      {
+        userId: request.user_id,
+        projectId: request.project_id,
+        timeTaken: timings.compile,
+        clsiRequest: request,
+        stats,
+        timings,
+        // explicitly include latexmk stats to bypass the non-enumerable property
+        latexmk: stats.latexmk,
+        loadavg1m: loadavg?.[0],
+        loadavg5m: loadavg?.[1],
+        loadavg15m: loadavg?.[2],
+        samplingPercentage: Settings.performanceLogSamplingPercentage,
+      },
+      'sampled performance log'
+    )
+  }
+
+  return { outputFiles, buildId }
 }
 
 async function _saveOutputFiles({
@@ -306,34 +335,37 @@ async function _saveOutputFiles({
   stats,
   timings,
 }) {
-  const timer = new Metrics.Timer(
-    'process-output-files',
-    1,
-    request.metricsOpts
-  )
+  const start = Date.now()
   const outputDir = getOutputDir(request.project_id, request.user_id)
 
-  let { outputFiles, allEntries } =
+  const { outputFiles: rawOutputFiles, allEntries } =
     await OutputFileFinder.promises.findOutputFiles(resourceList, compileDir)
 
-  let buildId
-
-  try {
-    const saveResult = await OutputCacheManager.promises.saveOutputFiles(
+  const { buildId, outputFiles } =
+    await OutputCacheManager.promises.saveOutputFiles(
       { request, stats, timings },
-      outputFiles,
+      rawOutputFiles,
       compileDir,
       outputDir
     )
-    buildId = saveResult.buildId
-    outputFiles = saveResult.outputFiles
-  } catch (err) {
-    const { project_id: projectId, user_id: userId } = request
-    logger.err({ projectId, userId, err }, 'failed to save output files')
-  }
 
-  timings.output = timer.done()
+  timings.output = Date.now() - start
   return { outputFiles, allEntries, buildId }
+}
+
+// Set a maximum size for reading output.fdb_latexmk files
+// This limit is chosen to prevent excessive memory usage and ensure performance,
+// as fdb files are typically much smaller and only metrics are extracted from them.
+const MAX_FDB_FILE_SIZE = 1024 * 1024 // 1 MB
+
+async function _readFdbFile(compileDir) {
+  const fdbFile = Path.join(compileDir, 'output.fdb_latexmk')
+  const { result } = await SafeReader.promises.readFile(
+    fdbFile,
+    MAX_FDB_FILE_SIZE,
+    'utf8'
+  )
+  return result
 }
 
 async function stopCompile(projectId, userId) {
@@ -416,14 +448,7 @@ async function _checkDirectory(compileDir) {
   return true
 }
 
-async function syncFromCode(
-  projectId,
-  userId,
-  filename,
-  line,
-  column,
-  imageName
-) {
+async function syncFromCode(projectId, userId, filename, line, column, opts) {
   // If LaTeX was run in a virtual environment, the file path that synctex expects
   // might not match the file path on the host. The .synctex.gz file however, will be accessed
   // wherever it is on the host.
@@ -439,15 +464,23 @@ async function syncFromCode(
     '-o',
     outputFilePath,
   ]
-  const stdout = await _runSynctex(projectId, userId, command, imageName)
+  const { stdout, downloadedFromCache } = await _runSynctex(
+    projectId,
+    userId,
+    command,
+    opts
+  )
   logger.debug(
     { projectId, userId, filename, line, column, command, stdout },
     'synctex code output'
   )
-  return SynctexOutputParser.parseViewOutput(stdout)
+  return {
+    codePositions: SynctexOutputParser.parseViewOutput(stdout),
+    downloadedFromCache,
+  }
 }
 
-async function syncFromPdf(projectId, userId, page, h, v, imageName) {
+async function syncFromPdf(projectId, userId, page, h, v, opts) {
   const compileName = getCompileName(projectId, userId)
   const baseDir = Settings.path.synctexBaseDir(compileName)
   const outputFilePath = `${baseDir}/output.pdf`
@@ -457,9 +490,17 @@ async function syncFromPdf(projectId, userId, page, h, v, imageName) {
     '-o',
     `${page}:${h}:${v}:${outputFilePath}`,
   ]
-  const stdout = await _runSynctex(projectId, userId, command, imageName)
+  const { stdout, downloadedFromCache } = await _runSynctex(
+    projectId,
+    userId,
+    command,
+    opts
+  )
   logger.debug({ projectId, userId, page, h, v, stdout }, 'synctex pdf output')
-  return SynctexOutputParser.parseEditOutput(stdout, baseDir)
+  return {
+    pdfPositions: SynctexOutputParser.parseEditOutput(stdout, baseDir),
+    downloadedFromCache,
+  }
 }
 
 async function _checkFileExists(dir, filename) {
@@ -486,32 +527,97 @@ async function _checkFileExists(dir, filename) {
   }
 }
 
-async function _runSynctex(projectId, userId, command, imageName) {
-  const directory = getCompileDir(projectId, userId)
+async function _runSynctex(projectId, userId, command, opts) {
+  const { imageName, editorId, buildId, compileFromClsiCache } = opts
+
+  if (imageName && !_isImageNameAllowed(imageName)) {
+    throw new Errors.InvalidParameter('invalid image')
+  }
+  if (editorId && !/^[a-f0-9-]+$/.test(editorId)) {
+    throw new Errors.InvalidParameter('invalid editorId')
+  }
+  if (buildId && !OutputCacheManager.BUILD_REGEX.test(buildId)) {
+    throw new Errors.InvalidParameter('invalid buildId')
+  }
+
+  const outputDir = getOutputDir(projectId, userId)
+  const runInOutputDir = buildId && CommandRunner.canRunSyncTeXInOutputDir()
+
+  const directory = runInOutputDir
+    ? Path.join(outputDir, OutputCacheManager.CACHE_SUBDIR, buildId)
+    : getCompileDir(projectId, userId)
   const timeout = 60 * 1000 // increased to allow for large projects
   const compileName = getCompileName(projectId, userId)
-  const compileGroup = 'synctex'
+  const compileGroup = runInOutputDir ? 'synctex-output' : 'synctex'
   const defaultImageName =
     Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.image
-  await _checkFileExists(directory, 'output.synctex.gz')
-  try {
-    const output = await CommandRunner.promises.run(
-      compileName,
-      command,
-      directory,
-      imageName || defaultImageName,
-      timeout,
-      {},
-      compileGroup
-    )
-    return output.stdout
-  } catch (error) {
-    throw OError.tag(error, 'error running synctex', {
-      command,
-      projectId,
-      userId,
-    })
-  }
+  // eslint-disable-next-line @typescript-eslint/return-await
+  return await OutputCacheManager.promises.queueDirOperation(
+    outputDir,
+    /**
+     * @return {Promise<{stdout: string, downloadedFromCache: boolean}>}
+     */
+    async () => {
+      let downloadedFromCache = false
+      try {
+        await _checkFileExists(directory, 'output.synctex.gz')
+        if (compileFromClsiCache) {
+          try {
+            await _checkFileExists(directory, 'output.log')
+          } catch (err) {
+            if (err instanceof Errors.NotFoundError) downloadedFromCache = true
+          }
+        }
+      } catch (err) {
+        if (
+          err instanceof Errors.NotFoundError &&
+          compileFromClsiCache &&
+          editorId &&
+          buildId
+        ) {
+          try {
+            downloadedFromCache =
+              await downloadOutputDotSynctexFromCompileCache(
+                projectId,
+                userId,
+                editorId,
+                buildId,
+                directory
+              )
+          } catch (err) {
+            logger.warn(
+              { err, projectId, userId, editorId, buildId },
+              'failed to download output.synctex.gz from clsi-cache'
+            )
+          }
+          await _checkFileExists(directory, 'output.synctex.gz')
+        } else {
+          throw err
+        }
+      }
+      try {
+        const { stdout } = await CommandRunner.promises.run(
+          compileName,
+          command,
+          directory,
+          imageName || defaultImageName,
+          timeout,
+          {},
+          compileGroup
+        )
+        return {
+          stdout,
+          downloadedFromCache,
+        }
+      } catch (error) {
+        throw OError.tag(error, 'error running synctex', {
+          command,
+          projectId,
+          userId,
+        })
+      }
+    }
+  )
 }
 
 async function wordcount(projectId, userId, filename, image) {
@@ -522,6 +628,10 @@ async function wordcount(projectId, userId, filename, image) {
   const timeout = 60 * 1000
   const compileName = getCompileName(projectId, userId)
   const compileGroup = 'wordcount'
+
+  if (image && !_isImageNameAllowed(image)) {
+    throw new Errors.InvalidParameter('invalid image')
+  }
 
   try {
     await fsPromises.mkdir(compileDir, { recursive: true })
@@ -610,13 +720,135 @@ function _parseWordcountFromOutput(output) {
   return results
 }
 
+function _isImageNameAllowed(imageName) {
+  const ALLOWED_IMAGES =
+    Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.allowedImages
+  return !ALLOWED_IMAGES || ALLOWED_IMAGES.includes(imageName)
+}
+
+function _shouldSkipMetrics(request) {
+  return ['clsi-perf', 'health-check'].includes(request.metricsOpts.path)
+}
+
+function _emitMetrics(request, status, stats, timings) {
+  if (_shouldSkipMetrics(request)) {
+    return
+  }
+
+  // find the image tag to log it as a metric, e.g. 2015.1
+  let tag = 'default'
+  if (request.imageName != null) {
+    const match = request.imageName.match(/:(.*)/)
+    if (match != null) {
+      tag = match[1]
+    }
+  }
+
+  const runs = stats.latexmk?.['latexmk-rule-times']
+  let passes = 0
+  if (runs != null) {
+    let cumulativeRuleTimeMs = 0
+    for (const run of runs) {
+      if (LATEX_PASSES_RULES.has(run.rule)) {
+        passes += 1
+      }
+
+      const rule = KNOWN_LATEXMK_RULES.has(run.rule) ? run.rule : 'other'
+      ClsiMetrics.latexmkRuleDurationSeconds.observe(
+        {
+          group: request.compileGroup,
+          rule,
+        },
+        run.time_ms / 1000
+      )
+      cumulativeRuleTimeMs += run.time_ms
+    }
+
+    const totalTimeMs = stats.latexmk?.['latexmk-time']?.total
+    if (totalTimeMs != null) {
+      ClsiMetrics.latexmkRuleDurationSeconds.observe(
+        { group: request.compileGroup, rule: 'overhead' },
+        (totalTimeMs - cumulativeRuleTimeMs) / 1000
+      )
+    }
+  }
+
+  const imgTimings = stats.latexmk?.['latexmk-img-times']
+  if (imgTimings != null) {
+    for (const timing of imgTimings) {
+      ClsiMetrics.imageProcessingDurationSeconds.observe(
+        {
+          group: request.compileGroup,
+          type: timing.type,
+        },
+        timing.time_ms / 1000
+      )
+    }
+  }
+
+  ClsiMetrics.compilesTotal.inc({
+    status,
+    engine: request.compiler,
+    image: tag,
+    compile: request.metricsOpts.compile,
+    group: request.compileGroup,
+    draft: request.draft ? 'true' : 'false',
+    stop_on_first_error: request.stopOnFirstError ? 'true' : 'false',
+    passes,
+  })
+
+  if (timings.sync != null) {
+    ClsiMetrics.syncResourcesDurationSeconds.observe(
+      {
+        type: request.syncType,
+        compile: request.metricsOpts.compile,
+        group: request.compileGroup,
+      },
+      timings.sync / 1000
+    )
+  }
+
+  if (timings.compile != null) {
+    ClsiMetrics.compileDurationSeconds.observe(
+      {
+        status,
+        engine: request.compiler,
+        compile: request.metricsOpts.compile,
+        group: request.compileGroup,
+        passes: passes === 0 ? 'none' : passes === 1 ? 'single' : 'multiple',
+      },
+      timings.compile / 1000
+    )
+  }
+
+  if (timings.output != null) {
+    ClsiMetrics.processOutputFilesDurationSeconds.observe(
+      {
+        compile: request.metricsOpts.compile,
+        group: request.compileGroup,
+      },
+      timings.output / 1000
+    )
+  }
+
+  if (timings.compileE2E != null) {
+    ClsiMetrics.e2eCompileDurationSeconds.observe(timings.compileE2E / 1000)
+  }
+}
+
 module.exports = {
   doCompileWithLock: callbackify(doCompileWithLock),
   stopCompile: callbackify(stopCompile),
   clearProject: callbackify(clearProject),
   clearExpiredProjects: callbackify(clearExpiredProjects),
-  syncFromCode: callbackify(syncFromCode),
-  syncFromPdf: callbackify(syncFromPdf),
+  syncFromCode: callbackifyMultiResult(syncFromCode, [
+    'codePositions',
+    'downloadedFromCache',
+  ]),
+  syncFromPdf: callbackifyMultiResult(syncFromPdf, [
+    'pdfPositions',
+    'downloadedFromCache',
+  ]),
   wordcount: callbackify(wordcount),
   promises: {
     doCompileWithLock,

@@ -1,13 +1,12 @@
 import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import ArchiveProjectModal from '../../../modals/archive-project-modal'
 import useIsMounted from '../../../../../../shared/hooks/use-is-mounted'
 import { useProjectListContext } from '../../../../context/project-list-context'
 import { archiveProject } from '../../../../util/api'
 import { Project } from '../../../../../../../../types/project/dashboard/api'
-import { bsVersion } from '@/features/utils/bootstrap-5'
 
 function ArchiveProjectsButton() {
   const { selectedProjects, toggleSelectedProject, updateProjectViewData } =
@@ -50,7 +49,7 @@ function ArchiveProjectsButton() {
           onClick={handleOpenModal}
           variant="secondary"
           accessibilityLabel={text}
-          icon={bsVersion({ bs5: 'inbox', bs3: 'inbox' })}
+          icon="inbox"
         />
       </OLTooltip>
       <ArchiveProjectModal

@@ -1,4 +1,3 @@
-import '../../helpers/bootstrap-3'
 import SplitTestBadge from '../../../../frontend/js/shared/components/split-test-badge'
 import { EditorProviders } from '../../helpers/editor-providers'
 
@@ -30,7 +29,8 @@ describe('split test badge', function () {
 
     cy.findByRole('link', { name: /this is an alpha feature/i })
       .should('have.attr', 'href', '/alpha/participate')
-      .find('.badge.alpha-badge')
+      .find('.badge')
+      .contains('α')
   })
 
   it('does not render the alpha badge when user is not assigned to the variant', function () {
@@ -88,7 +88,8 @@ describe('split test badge', function () {
 
     cy.findByRole('link', { name: /this is a beta feature/i })
       .should('have.attr', 'href', '/beta/participate')
-      .find('.badge.beta-badge')
+      .find('.badge')
+      .contains('β')
   })
 
   it('does not render the beta badge when user is not assigned to the variant', function () {
@@ -146,7 +147,7 @@ describe('split test badge', function () {
 
     cy.findByRole('link', { name: /this is a new feature/i })
       .should('have.attr', 'href', '/feedback/form')
-      .find('.badge.info-badge')
+      .find('.info-badge')
   })
 
   it('does not render the info badge when user is not assigned to the variant', function () {
@@ -222,6 +223,6 @@ describe('split test badge', function () {
       name: /we are testing this new feature.*click to give feedback/i,
     })
       .should('have.attr', 'href', '/beta/participate')
-      .find('.badge.info-badge')
+      .find('.info-badge')
   })
 })

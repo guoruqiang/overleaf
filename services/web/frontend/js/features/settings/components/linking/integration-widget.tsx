@@ -1,15 +1,16 @@
 import { useCallback, useState, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import OLBadge from '@/features/ui/components/ol/ol-badge'
+import OLBadge from '@/shared/components/ol/ol-badge'
 import getMeta from '../../../../utils/meta'
 import { sendMB } from '../../../../infrastructure/event-tracking'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLModal, {
+import OLButton from '@/shared/components/ol/ol-button'
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
+} from '@/shared/components/ol/ol-modal'
 
 function trackUpgradeClick(integration: string) {
   sendMB('settings-upgrade-click', { integration })
@@ -20,6 +21,7 @@ function trackLinkingClick(integration: string) {
 }
 
 type IntegrationLinkingWidgetProps = {
+  id: string
   logo: ReactNode
   title: string
   description: string
@@ -35,6 +37,7 @@ type IntegrationLinkingWidgetProps = {
 }
 
 export function IntegrationLinkingWidget({
+  id,
   logo,
   title,
   description,
@@ -65,19 +68,20 @@ export function IntegrationLinkingWidget({
       <div>{logo}</div>
       <div className="description-container">
         <div className="title-row">
-          <h4>{title}</h4>
+          <h4 id={id}>{title}</h4>
           {!hasFeature && <OLBadge bg="info">{t('premium_feature')}</OLBadge>}
         </div>
         <p className="small">
           {description}{' '}
           <a href={helpPath} target="_blank" rel="noreferrer">
-            {t('learn_more')}
+            {t('learn_more_about', { appName: title })}
           </a>
         </p>
         {hasFeature && statusIndicator}
       </div>
       <div>
         <ActionButton
+          titleId={id}
           integration={title}
           hasFeature={hasFeature}
           linked={linked}
@@ -105,6 +109,7 @@ type ActionButtonProps = {
   handleUnlinkClick: () => void
   linkPath: string
   disabled?: boolean
+  titleId: string
 }
 
 function ActionButton({
@@ -114,24 +119,32 @@ function ActionButton({
   linkPath,
   disabled,
   integration,
+  titleId,
 }: ActionButtonProps) {
   const { t } = useTranslation()
+  const upgradeTextId = `${titleId}-upgrade`
+  const linkTextId = `${titleId}-link`
+  const unlinkTextId = `${titleId}-unlink`
+
   if (!hasFeature) {
     return (
       <OLButton
         variant="primary"
         href="/user/subscription/plans"
         onClick={() => trackUpgradeClick(integration)}
+        aria-labelledby={`${titleId} ${upgradeTextId}`}
       >
-        <span className="text-capitalize">{t('upgrade')}</span>
+        <span id={upgradeTextId}>{t('upgrade')}</span>
       </OLButton>
     )
   } else if (linked) {
     return (
       <OLButton
         variant="danger-ghost"
+        aria-labelledby={`${unlinkTextId} ${titleId}`}
         onClick={handleUnlinkClick}
         disabled={disabled}
+        id={unlinkTextId}
       >
         {t('unlink')}
       </OLButton>
@@ -140,15 +153,21 @@ function ActionButton({
     return (
       <>
         {disabled ? (
-          <OLButton disabled variant="secondary" className="text-capitalize">
+          <OLButton
+            disabled
+            variant="secondary"
+            aria-labelledby={`${linkTextId} ${titleId}`}
+            id={linkTextId}
+          >
             {t('link')}
           </OLButton>
         ) : (
           <OLButton
             variant="secondary"
             href={linkPath}
-            className="text-capitalize"
             onClick={() => trackLinkingClick(integration)}
+            aria-labelledby={`${linkTextId} ${titleId}`}
+            id={linkTextId}
           >
             {t('link')}
           </OLButton>
@@ -190,7 +209,7 @@ function UnlinkConfirmationModal({
 
   return (
     <OLModal show={show} onHide={handleHide}>
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{title}</OLModalTitle>
       </OLModalHeader>
 
